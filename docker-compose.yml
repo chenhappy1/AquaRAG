@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  # 🚀 后端服务配置
+  aquarag-backend:
+    build: ./backend
+    container_name: aquarag-backend
+    ports:
+      - "9000:9000" # 把容器内的 9000 端口映射到本地的 9000 端口
+    restart: always
+
+  # 🚀 前端服务配置
+  aquarag-frontend:
+    build: ./frontend
+    container_name: aquarag-frontend
+    ports:
+      - "80:80" # 把容器内的 80 端口映射到本地的 80 端口（这样你访问 http://localhost 就能直接看前端）
+    restart: always
+    depends_on:
+      - aquarag-backend # 确保后端先启动，前端再启动
