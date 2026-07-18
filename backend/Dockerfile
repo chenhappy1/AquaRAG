@@ -1,13 +1,17 @@
-# 1. 编译构建阶段：使用 Java 25 新版镜像
+# Stage 1: Build and package stage using Maven and Java 21
 FROM maven:3-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY . .
-# 执行打包命令，跳过测试
+
+# Execute the packaging command and skip unit tests for speed
 RUN mvn clean package -DskipTests
 
-# 2. 运行阶段：仅复制打包好的 JAR 包运行，保持镜像体积轻量
+# Stage 2: Runtime stage to run the bundled lightweight application JAR
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+
+# Copy the compiled production executable JAR file from the build stage
 COPY --from=build /app/target/*.jar app.jar
+
 EXPOSE 9000
 ENTRYPOINT ["java", "-jar", "app.jar"]

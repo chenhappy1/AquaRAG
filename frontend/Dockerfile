@@ -1,15 +1,20 @@
-# 1. 编译构建阶段
+# Stage 1: Build and compile the Angular application
 FROM node:22 AS build
 WORKDIR /app
 COPY . .
-# 开启限流保护防止撑爆内存，并执行 Angular 编译
+
+# Set memory limit flag to prevent Node.js from running out of RAM during compilation
 ENV NODE_OPTIONS="--max-old-space-size=512"
+
+# Install packages smoothly and execute production build
 RUN npm install --no-audit --no-fund
 RUN npx ng build --configuration production
 
-# 2. 运行阶段：使用我们之前配置过的 Nginx 服务器作为载体
+# Stage 2: Serve the compiled application static assets via Nginx
 FROM nginx:alpine
-# 把 Angular 编译出来的前端静态文件，复制到 Nginx 的网页托管目录
+
+# Copy the generated production build files into the default Nginx public server directory
 COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
