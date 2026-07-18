@@ -52,10 +52,7 @@ pipeline {
                 echo 'Deploying services using Legacy Docker Compose syntax...'
                 // 🌟 FIX: Change "docker compose" to "docker-compose" with a hyphen
                 sh 'docker-compose down || true'
-                
-                // 🌟 FIX: Use the exact legacy binary name so your Ubuntu server understands it natively
-                sh "OPENAI_API_KEY=${OPENAI_API_KEY} docker-compose up -d --build backend-python frontend"
-                
+                sh 'docker-compose up -d'
                 echo 'Deployment successful! AquaRAG is running.'
             }
         }
