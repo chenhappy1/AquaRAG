@@ -51,8 +51,8 @@ pipeline {
             steps {
                 echo 'Deploying services using Legacy Docker Compose syntax...'
                 // 🌟 FIX: Change "docker compose" to "docker-compose" with a hyphen
-                sh 'docker-compose down || true'
-                sh 'docker-compose up -d'
+                sh 'docker compose down || true'
+                sh 'docker compose up -d'
                 echo 'Deployment successful! AquaRAG is running.'
             }
         }
