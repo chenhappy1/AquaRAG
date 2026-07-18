@@ -7,52 +7,52 @@ pipeline {
     }
 
     stages {
-        // Stage 1: Pull code from GitHub
+        // Stage 1: Pull the latest code from your GitHub repository
         stage('Checkout Source Code') {
             steps {
                 echo "=== Starting to pull project: ${env.PROJECT_NAME} from GitHub ==="
-                // This checks out the source code using the Git configuration specified in the Jenkins UI
                 checkout scm
             }
         }
 
-        // Stage 2: Build frontend assets (Targeting your 'frontend' folder)
-        stage('Build Frontend') {
+        // Stage 2: Install dependencies and compile the Angular 22 app
+        stage('Build Angular Frontend') {
             steps {
-                echo "=== Entering frontend directory for dependency installation and build ==="
-                // Using the 'dir' block to switch focus into the frontend folder automatically
+                echo "=== Entering frontend directory for compilation ==="
+                // The 'dir' block automatically runs commands inside your 'frontend' folder
                 dir('frontend') {
-                    echo "Currently inside the frontend folder..."
+                    echo "Installing Node modules (npm install)..."
+                    sh 'npm install'
                     
-                    // Note: Ensure Node.js and npm are installed on your AWS EC2 instance.
-                    // Once confirmed, you can uncomment the lines below:
-                    // sh 'npm install'
-                    // sh 'npm run build'
+                    echo "Building Angular project for production..."
+                    // Standard production build command for Angular 22
+                    sh 'npx ng build --configuration production'
                 }
             }
         }
 
-        // Stage 3: Deploy the built files
-        stage('Deploy') {
+        // Stage 3: Deploy the compiled static assets
+        stage('Deploy To Web Server') {
             steps {
                 echo "=== Starting deployment ==="
-                echo "The built static files are ready. Deploying to the target web server environment..."
+                echo "Deploying the built static files to Nginx/Apache directory..."
                 
-                // In a real-world scenario, you would put your server copy command here, for example:
-                // sh 'sudo cp -r frontend/dist/* /var/www/html/'
+                // Note: Angular 22 outputs production files to 'dist/[project-name]/browser/' by default.
+                // This command copies them into the default Ubuntu web directory.
+                sh 'sudo cp -r frontend/dist/AquaRAG/browser/* /var/www/html/'
                 
                 echo "Deployment finished successfully!"
             }
         }
     }
 
-    // Post-actions that execute depending on the completion status
+    // Post-actions executing based on the final pipeline status
     post {
         success {
-            echo '🎉 Congratulations! The pipeline built and deployed successfully!'
+            echo '🎉 Congratulations! Angular project built and deployed successfully!'
         }
         failure {
-            echo '❌ Oh no, something went wrong during the build process. Please inspect the logs above.'
+            echo '❌ Oh no, something went wrong during the build process. Please check the logs above.'
         }
     }
 }
