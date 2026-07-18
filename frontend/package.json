@@ -19,8 +19,8 @@
     "@angular/router": "^22.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "primeicons": "^8.0.0",
-    "primeng": "^16.0.0"
+    "primeicons": "^22.0.0",
+    "primeng": "^22.0.0"
   },
   "devDependencies": {
     "@angular/build": "^22.0.6",
