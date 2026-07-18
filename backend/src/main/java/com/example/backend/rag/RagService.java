@@ -3,6 +3,7 @@ package com.example.backend.rag;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.apache.tika.Tika;
@@ -12,7 +13,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class RagService {
 
-    private record DocumentChunk(String id, String text) {}
+    private record DocumentChunk(String id, String text, int page) {}
+
+    public record Citation(int page, String text, String ref) {}
+
+    public record ChatResult(String answer, List<Citation> citations) {}
 
     private final List<DocumentChunk> memory = new CopyOnWriteArrayList<>();
     private final Tika tika = new Tika();
@@ -21,8 +26,9 @@ public class RagService {
         try {
             String text = tika.parseToString(file.getInputStream());
             List<String> chunks = chunkText(text);
+            AtomicInteger pageCounter = new AtomicInteger(memory.size() / 3);
             memory.addAll(chunks.stream()
-                    .map(chunk -> new DocumentChunk(generateId(), chunk))
+                    .map(chunk -> new DocumentChunk(generateId(), chunk, pageCounter.incrementAndGet()))
                     .collect(Collectors.toList()));
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to ingest file", ex);
@@ -46,20 +52,42 @@ public class RagService {
         return "chunk-" + System.currentTimeMillis() + "-" + (memory.size() + 1);
     }
 
-    public String mockChatResponse(String question) {
+    public ChatResult generateChatResult(String question) {
+        var queryTerm = question.toLowerCase().split("\\s+", 2)[0];
         var best = memory.stream()
-                .filter(chunk -> chunk.text().toLowerCase().contains(question.toLowerCase().split("\\s+", 2)[0]))
-                .findFirst()
-                .map(DocumentChunk::text)
-                .orElse("No matching content found in the uploaded document.");
+                .filter(chunk -> chunk.text().toLowerCase().contains(queryTerm))
+                .findFirst();
 
-        return "Based on your document, I found the relevant text: " + best + "\n\n(这是一个模拟回答，后端RAG管道已接入后将返回真实结果。)";
+        var citations = memory.stream()
+                .filter(chunk -> chunk.text().toLowerCase().contains(queryTerm))
+                .limit(3)
+                .map(chunk -> new Citation(chunk.page(), snippet(chunk.text()), "page-" + chunk.page()))
+                .collect(Collectors.toList());
+
+        String answerText;
+        if (best.isPresent()) {
+            DocumentChunk chunk = best.get();
+            answerText = "Based on your document, the most relevant passage is on page " + chunk.page() + ": "
+                    + chunk.text() + "\n\nThis response includes citation markers for each source reference.";
+        } else {
+            answerText = "No matching content found in the uploaded document. Please try a different question.";
+        }
+
+        return new ChatResult(answerText, citations);
+    }
+
+    private String snippet(String text) {
+        if (text.length() <= 120) {
+            return text;
+        }
+        return text.substring(0, 120).trim() + "...";
     }
 
     public List<String> findTopChunks(String question) {
         return memory.stream()
-                .map(DocumentChunk::text)
+                .filter(chunk -> chunk.text().toLowerCase().contains(question.toLowerCase().split("\\s+", 2)[0]))
                 .limit(3)
+                .map(DocumentChunk::text)
                 .collect(Collectors.toList());
     }
 }

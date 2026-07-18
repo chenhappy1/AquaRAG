@@ -1,7 +1,6 @@
 package com.example.backend.rag;
 
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -14,9 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @RestController
 @RequestMapping("/api")
 public class RagController {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final RagService ragService;
 
@@ -38,11 +41,14 @@ public class RagController {
             var chunks = ragService.findTopChunks(request.question());
             emitter.send(SseEmitter.event().name("chunk").data("Retrieving relevant text from vector store..."));
             Thread.sleep(400);
-            for (String chunk : chunks) {
+            for (var chunk : chunks) {
                 emitter.send(SseEmitter.event().name("chunk").data(chunk));
                 Thread.sleep(250);
             }
-            emitter.send(SseEmitter.event().name("result").data(ragService.mockChatResponse(request.question())));
+
+            var chatResult = ragService.generateChatResult(request.question());
+            var resultJson = OBJECT_MAPPER.writeValueAsString(chatResult);
+            emitter.send(SseEmitter.event().name("result").data(resultJson, MediaType.APPLICATION_JSON));
             emitter.complete();
         } catch (Exception ex) {
             emitter.completeWithError(ex);

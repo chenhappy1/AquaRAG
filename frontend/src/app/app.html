@@ -93,22 +93,22 @@
             <span class="doc-tag">Source ready</span>
           </div>
           <article class="document-preview">
-            <section class="document-block" data-ref="page-4" [class.highlighted]="activeCitation() === 'page-4'">
+            <section class="document-block" data-ref="page-1" [class.highlighted]="activeCitation() === 'page-1'" (click)="openCitation('page-1')">
               <div class="document-heading">
-                <span>Page 4 • Section 2.1</span>
-                <p>Key obligation summary and contract terms for the current agreement.</p>
+                <span>Page 1 • Overview</span>
+                <p>Extracted summary and main terms from the first document section.</p>
               </div>
             </section>
-            <section class="document-block" data-ref="page-7" [class.highlighted]="activeCitation() === 'page-7'">
+            <section class="document-block" data-ref="page-2" [class.highlighted]="activeCitation() === 'page-2'" (click)="openCitation('page-2')">
               <div class="document-heading">
-                <span>Page 7 • Deadline details</span>
-                <p>Delivery schedule, milestone dates, and handoff conditions captured here.</p>
+                <span>Page 2 • Deadlines</span>
+                <p>Milestone dates, reporting requirements, and timing details.</p>
               </div>
             </section>
-            <section class="document-block" data-ref="page-10" [class.highlighted]="activeCitation() === 'page-10'">
+            <section class="document-block" data-ref="page-3" [class.highlighted]="activeCitation() === 'page-3'" (click)="openCitation('page-3')">
               <div class="document-heading">
-                <span>Page 10 • Risk and assumptions</span>
-                <p>Important caveats, assumptions, and audit notes for model validation.</p>
+                <span>Page 3 • Assumptions</span>
+                <p>Supporting conditions and risk assumptions for the document content.</p>
               </div>
             </section>
           </article>
@@ -142,6 +142,16 @@
             <div *ngFor="let message of chatMessages(); let i = index" class="chat-message" [class.assistant]="message.role === 'assistant'" [class.user]="message.role === 'user'">
               <div class="message-label">{{ message.role === 'assistant' ? 'AI' : 'You' }}</div>
               <p>{{ message.text }}</p>
+              <div class="message-citations" *ngIf="message.citations?.length">
+                <button
+                  class="citation"
+                  type="button"
+                  *ngFor="let citation of message.citations"
+                  (click)="openCitation(citation.ref)"
+                >
+                  {{ citation.ref }} • Page {{ citation.page }}
+                </button>
+              </div>
             </div>
             <div *ngIf="chatMessages().length === 0" class="empty-chat-placeholder">
               <p>Upload completed. Ask a question about the document to start the conversation.</p>
