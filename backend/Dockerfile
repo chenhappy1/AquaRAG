@@ -1,5 +1,5 @@
 # Stage 1: Build and package stage using Maven and Java 21
-FROM maven:3-eclipse-temurin-21 AS build
+FROM maven:3-eclipse-temurin-25 AS build
 WORKDIR /app
 COPY . .
 
@@ -7,7 +7,7 @@ COPY . .
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime stage to run the bundled lightweight application JAR
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 # Copy the compiled production executable JAR file from the build stage
