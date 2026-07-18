@@ -140,7 +140,8 @@ export class App {
   protected sendChat(): void {
     const message = this.chatInput().trim();
     if (!message || this.chatStreaming()) return;
-    this.chatMessages.set([...this.chatMessages(), { role: 'user', text: message }]);
+    const userMessage: ChatMessage = { role: 'user', text: message };
+    this.chatMessages.set([...this.chatMessages(), userMessage]);
     this.chatInput.set('');
     this.startChatStream(message);
   }
@@ -149,7 +150,8 @@ export class App {
     if (this.chatStreaming()) return;
     this.chatStreaming.set(true);
 
-    const messages = [...this.chatMessages(), { role: 'assistant', text: '' }];
+    const assistantMessage: ChatMessage = { role: 'assistant', text: '' };
+    const messages = [...this.chatMessages(), assistantMessage];
     this.chatMessages.set(messages);
     const targetIndex = messages.length - 1;
 
