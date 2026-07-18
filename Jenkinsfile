@@ -47,15 +47,24 @@ pipeline {
         }
         */
 
-        stage('4. Deploy Application via Docker Compose') {
-            steps {
-                echo 'Deploying services using Legacy Docker Compose syntax...'
-                // 🌟 FIX: Change "docker compose" to "docker-compose" with a hyphen
-                sh 'docker compose down || true'
-                sh 'docker compose up -d'
-                echo 'Deployment successful! AquaRAG is running.'
-            }
-        }
+        stage('4. Deploy Application via Standard Docker') { 
+            steps { 
+                echo 'Deploying services using standard docker run commands...' 
+                
+                // 1. Stop and remove existing containers to prevent naming or port conflicts
+                sh 'docker stop aquarag-backend-python aquarag-frontend || true'
+                sh 'docker rm aquarag-backend-python aquarag-frontend || true'
+                
+                // 2. Run the Python Backend container (maps port 8000)
+                sh 'docker run -d --name aquarag-backend-python -p 8000:8000 aquarag-backend-python:latest'
+                
+                // 3. Run the Angular Frontend container (maps port 80)
+                sh 'docker run -d --name aquarag-frontend -p 80:80 aquarag-frontend:latest'
+                
+                echo 'Deployment successful! AquaRAG is running.' 
+            } 
+        } 
+
 
     }
 
