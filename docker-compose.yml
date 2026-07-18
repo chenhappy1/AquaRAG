@@ -1,20 +1,24 @@
 version: '3.8'
 
 services:
-  # 🚀 Backend Service Configuration (Spring Boot)
-  aquarag-backend:
-    build: ./backend
-    container_name: aquarag-backend
+  # 1. Your brand-new Python RAG backend
+  backend-python:
+    build: ./backend-python    # Points to your new folder
     ports:
-      - "9000:9000" # Maps port 9000 of the container to port 9000 on your local machine
-    restart: always
+      - "8000:8000"            # FastAPI defaults to port 8000
+    environment:
+      - OPENAI_API_KEY=your_actual_openai_api_key_here  # Enter your API Key here
+    volumes:
+      - ./backend-python/chroma_db:/app/chroma_db # Keeps your Vector DB data safe when container restarts
 
-  # 🚀 Frontend Service Configuration (Angular)
-  aquarag-frontend:
-    build: ./frontend
-    container_name: aquarag-frontend
+  # 2. Your original Java backend (Kept safely here, won't conflict)
+  backend-java:
+    build: ./backend
     ports:
-      - "80:80" # Maps port 80 of the container to port 80 on your local machine (http://localhost)
-    restart: always
-    depends_on:
-      - aquarag-backend # Ensures the backend starts up before the frontend launches
+      - "9000:9000"            # Your original Java port
+
+  # 3. Your Angular frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "4200:4200"
