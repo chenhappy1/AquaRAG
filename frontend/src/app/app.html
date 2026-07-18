@@ -138,39 +138,42 @@
         </div>
 
         <div *ngIf="stage() === 'active'" class="active-chat">
-          <div class="answer-card">
-            <div class="answer-copy">
-              <p>
-                The document outlines the main contract terms, deadlines, and risk assumptions.
-                Key obligations are on <strong>Page 4</strong>, and milestone timing is detailed on <strong>Page 7</strong>.
-              </p>
+          <div class="chat-messages">
+            <div *ngFor="let message of chatMessages(); let i = index" class="chat-message" [class.assistant]="message.role === 'assistant'" [class.user]="message.role === 'user'">
+              <div class="message-label">{{ message.role === 'assistant' ? 'AI' : 'You' }}</div>
+              <p>{{ message.text }}</p>
             </div>
-            <div class="answer-meta">
-              <button type="button" class="citation" (click)="openCitation('page-4')">[Page 4]</button>
-              <button type="button" class="citation" (click)="openCitation('page-7')">[Page 7]</button>
-            </div>
-            <div class="answer-actions">
-              <button type="button" class="text-button" (click)="copyResponse()">Copy</button>
-              <button type="button" class="text-button">Regenerate</button>
-              <div class="feedback-buttons">
-                <button type="button" aria-label="Helpful">👍</button>
-                <button type="button" aria-label="Not helpful">👎</button>
-              </div>
+            <div *ngIf="chatMessages().length === 0" class="empty-chat-placeholder">
+              <p>Upload completed. Ask a question about the document to start the conversation.</p>
             </div>
           </div>
 
           <div class="suggested-prompts">
             <p class="suggested-label">Suggested prompts</p>
             <div class="prompt-list">
-              <button type="button" *ngFor="let prompt of samplePrompts">{{ prompt }}</button>
+              <button type="button" *ngFor="let prompt of samplePrompts" (click)="chatInput.set(prompt); sendChat()">{{ prompt }}</button>
             </div>
           </div>
         </div>
       </div>
 
       <footer class="chat-footer" *ngIf="stage() === 'active'">
-        <input type="text" placeholder="Ask anything about {{ selectedFileName }}..." />
-        <button type="button">Send</button>
+        <input
+          pInputText
+          type="text"
+          [value]="chatInput()"
+          (input)="chatInput.set($any($event.target).value)"
+          placeholder="Ask anything about {{ selectedFileName }}..."
+          [readonly]="chatStreaming()"
+        />
+        <button
+          pButton
+          type="button"
+          label="Send"
+          icon="pi pi-send"
+          (click)="sendChat()"
+          [disabled]="chatStreaming() || !chatInput().trim()"
+        ></button>
       </footer>
     </section>
   </main>
