@@ -58,12 +58,13 @@ pipeline {
                 // 2. Run the Python Backend container (maps port 8000)
                 sh 'docker run -d --name aquarag-backend-python -p 8000:8000 aquarag-backend-python:latest'
                 
-                // 3. 🌟 FIX: Change host port from 80 to 8080 to avoid the "address already in use" conflict
-                sh 'docker run -d --name aquarag-frontend -p 8080:80 aquarag-frontend:latest'
+                // 3. 🌟 FIX: Shift host port to 9000 to completely avoid the Jenkins/system port conflict
+                sh 'docker run -d --name aquarag-frontend -p 9000:80 aquarag-frontend:latest'
                 
                 echo 'Deployment successful! AquaRAG is running.' 
             } 
         } 
+
 
 
 
