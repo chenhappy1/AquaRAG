@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         PROJECT_NAME = 'AquaRAG'
-        // 🔒 CRITICAL: Restrict Node.js memory to 512MB to prevent crashing your AWS server
         NODE_OPTIONS = '--max-old-space-size=512'
     }
 
@@ -20,7 +19,6 @@ pipeline {
                 echo "=== Entering frontend directory ==="
                 dir('frontend') {
                     echo "Installing Node modules with memory saving flags..."
-                    // --no-audit and --no-fund heavily reduce memory spike during install
                     sh 'npm install --no-audit --no-fund'
                     
                     echo "Building Angular project for production..."
@@ -32,7 +30,8 @@ pipeline {
         stage('Deploy To Web Server') {
             steps {
                 echo "=== Starting deployment ==="
-                sh 'sudo cp -r frontend/dist/AquaRAG/browser/* /var/www/html/'
+                // Fixed path to match your exact Angular output location
+                sh 'sudo cp -r frontend/dist/frontend/* /var/www/html/'
                 echo "Deployment finished successfully!"
             }
         }
