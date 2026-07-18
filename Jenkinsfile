@@ -49,16 +49,17 @@ pipeline {
 
         stage('4. Deploy Application via Docker Compose') {
             steps {
-                echo 'Deploying services using Docker Compose...'
-                // Shuts down old containers safely
-                sh 'docker compose down || true'
+                echo 'Deploying services using Legacy Docker Compose syntax...'
+                // 🌟 FIX: Change "docker compose" to "docker-compose" with a hyphen
+                sh 'docker-compose down || true'
                 
-                // Starts the brand new Python backend and Frontend containers in detached mode (-d)
-                sh 'docker compose up -d --build backend-python frontend'
+                // 🌟 FIX: Use the exact legacy binary name so your Ubuntu server understands it natively
+                sh "OPENAI_API_KEY=${OPENAI_API_KEY} docker-compose up -d --build backend-python frontend"
                 
-                echo 'Deployment successful! Application is running.'
+                echo 'Deployment successful! AquaRAG is running.'
             }
         }
+
     }
 
     post {
