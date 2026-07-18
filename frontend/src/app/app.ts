@@ -1,5 +1,10 @@
 ﻿import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ButtonModule } from 'primeng/button';
+import { FileUploadModule } from 'primeng/fileupload';
+import { ProgressBarModule } from 'primeng/progressbar';
+import { SkeletonModule } from 'primeng/skeleton';
+import { InputTextModule } from 'primeng/inputtext';
 
 interface HistoryItem {
   title: string;
@@ -10,7 +15,7 @@ interface HistoryItem {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ButtonModule, FileUploadModule, ProgressBarModule, SkeletonModule, InputTextModule],
   templateUrl: './app.html',
   styleUrls: ['./app.scss'],
 })

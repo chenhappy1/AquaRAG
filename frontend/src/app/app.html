@@ -72,7 +72,7 @@
           <div>
             <p class="drop-title">Drag and drop a document</p>
             <p class="drop-copy">Supported formats: PDF, DOCX, TXT, MD up to 25MB</p>
-            <button type="button" class="browse-button" (click)="$any(fileInput).click()">Browse files</button>
+            <button pButton type="button" label="Browse files" class="browse-button" (click)="$any(fileInput).click()"></button>
             <input #fileInput type="file" accept=".pdf,.docx,.txt,.md" hidden (change)="onFilesSelected($event)" />
           </div>
         </div>
@@ -80,12 +80,10 @@
         <div class="processing-state" *ngIf="stage() === 'processing'">
           <div class="status-bar">
             <p class="status-label">{{ processingText() }}</p>
-            <div class="progress-bar">
-              <span [style.width.%]="(processingStep() + 1) * 33"></span>
-            </div>
+            <p-progressBar [value]="(processingStep() + 1) * 33"></p-progressBar>
           </div>
           <div class="skeleton-grid">
-            <div class="skeleton-card" *ngFor="let i of [1,2,3]"></div>
+            <p-skeleton *ngFor="let i of [1,2,3]" width="100%" height="100px" shape="rectangle"></p-skeleton>
           </div>
         </div>
 
