@@ -72,7 +72,7 @@
           <div>
             <p class="drop-title">Drag and drop a document</p>
             <p class="drop-copy">Supported formats: PDF, DOCX, TXT, MD up to 25MB</p>
-            <button pButton type="button" label="Browse files" class="browse-button" (click)="$any(fileInput).click()"></button>
+            <button type="button" class="browse-button" (click)="$any(fileInput).click()">Browse files</button>
             <input #fileInput type="file" accept=".pdf,.docx,.txt,.md" hidden (change)="onFilesSelected($event)" />
           </div>
         </div>
@@ -80,10 +80,10 @@
         <div class="processing-state" *ngIf="stage() === 'processing'">
           <div class="status-bar">
             <p class="status-label">{{ processingText() }}</p>
-            <p-progressBar [value]="(processingStep() + 1) * 33"></p-progressBar>
+            <div class="progress-bar"><span [style.width.%]="(processingStep() + 1) * 33"></span></div>
           </div>
           <div class="skeleton-grid">
-            <p-skeleton *ngFor="let i of [1,2,3]" width="100%" height="100px" shape="rectangle"></p-skeleton>
+            <div class="skeleton-card" *ngFor="let i of [1,2,3]"></div>
           </div>
         </div>
 
@@ -169,21 +169,21 @@
 
       <footer class="chat-footer" *ngIf="stage() === 'active'">
         <input
-          pInputText
           type="text"
+          class="chat-input"
           [value]="chatInput()"
           (input)="chatInput.set($any($event.target).value)"
           placeholder="Ask anything about {{ selectedFileName }}..."
           [readonly]="chatStreaming()"
         />
         <button
-          pButton
           type="button"
-          label="Send"
-          icon="pi pi-send"
+          class="send-button"
           (click)="sendChat()"
           [disabled]="chatStreaming() || !chatInput().trim()"
-        ></button>
+        >
+          Send
+        </button>
       </footer>
     </section>
   </main>
