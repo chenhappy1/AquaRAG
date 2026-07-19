@@ -4,6 +4,11 @@ from fastapi.responses import StreamingResponse
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings, OpenAI
+from pathlib import Path
+from typing import Any
+from bs4 import BeautifulSoup
+from docx import Document
+from PyPDF2 import PdfReader
 import shutil
 import os
 import json
@@ -30,9 +35,11 @@ async def upload_document(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    # 2. Read the text content (Example assumes a plain text .txt file)
-    with open(file_path, "r", encoding="utf-8") as f:
-        text = f.read()
+    # 2. Read the text content from supported document formats
+    try:
+        text = extract_text_from_file(file_path)
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
         
     # 3. Chunk the text into smaller pieces (Crucial for RAG)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -42,7 +49,12 @@ async def upload_document(file: UploadFile = File(...)):
     # NOTE: You must set your OPENAI_API_KEY as an environment variable before running this
     # Use the lower-cost embedding model for cheaper RAG vectorization
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    db = Chroma.from_texts(chunks, embeddings, persist_directory=DB_DIR)
+    if os.path.exists(DB_DIR) and any(Path(DB_DIR).iterdir()):
+        db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
+        db.add_texts(chunks)
+        db.persist()
+    else:
+        db = Chroma.from_texts(chunks, embeddings, persist_directory=DB_DIR)
     
     return {
         "status": "success",
@@ -51,12 +63,36 @@ async def upload_document(file: UploadFile = File(...)):
     }
 
 
+def extract_text_from_file(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    if suffix in {".txt", ".md", ".csv", ".json"}:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
+
+    if suffix == ".pdf":
+        reader = PdfReader(file_path)
+        return "\n\n".join([page.extract_text() or "" for page in reader.pages])
+
+    if suffix == ".docx":
+        document = Document(file_path)
+        return "\n\n".join([paragraph.text for paragraph in document.paragraphs if paragraph.text])
+
+    if suffix in {".html", ".htm"}:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            soup = BeautifulSoup(f, "html.parser")
+            return soup.get_text(separator="\n")
+
+    raise ValueError(
+        f"Unsupported file type: {suffix}. Supported formats are TXT, PDF, DOCX, HTML."
+    )
+
+
 def load_vector_store():
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     return Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
 
 
-def build_prompt(question: str, docs: list[any]) -> str:
+def build_prompt(question: str, docs: list[Any]) -> str:
     if docs:
         context = "\n\n".join([getattr(doc, "page_content", "") for doc in docs])
     else:
@@ -85,6 +121,7 @@ async def chat(request: Request):
     docs = db.similarity_search(question, k=3)
 
     prompt = build_prompt(question, docs)
+    # Make sure OPENAI_API_BASE is set to the DeepSeek official API endpoint when using DeepSeek-V3
     llm = OpenAI(model="DeepSeek-V3", temperature=0.2, max_tokens=512)
     answer = llm.predict(prompt)
 
