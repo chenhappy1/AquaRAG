@@ -93,22 +93,23 @@
             <span class="doc-tag">Source ready</span>
           </div>
           <article class="document-preview">
-            <section class="document-block" data-ref="page-1" [class.highlighted]="activeCitation() === 'page-1'" (click)="openCitation('page-1')">
+            <section
+              class="document-block"
+              *ngFor="let preview of chunkPreviews(); let idx = index"
+              [attr.data-ref]="preview.anchor"
+              [id]="preview.anchor"
+              [class.highlighted]="activeCitation() === preview.anchor"
+              (click)="openCitation(preview.anchor)"
+            >
               <div class="document-heading">
-                <span>Page 1 • Overview</span>
-                <p>Extracted summary and main terms from the first document section.</p>
+                <span>{{ preview.ref }}</span>
+                <p>{{ preview.snippet }}</p>
               </div>
             </section>
-            <section class="document-block" data-ref="page-2" [class.highlighted]="activeCitation() === 'page-2'" (click)="openCitation('page-2')">
+            <section *ngIf="chunkPreviews().length === 0" class="document-block empty">
               <div class="document-heading">
-                <span>Page 2 • Deadlines</span>
-                <p>Milestone dates, reporting requirements, and timing details.</p>
-              </div>
-            </section>
-            <section class="document-block" data-ref="page-3" [class.highlighted]="activeCitation() === 'page-3'" (click)="openCitation('page-3')">
-              <div class="document-heading">
-                <span>Page 3 • Assumptions</span>
-                <p>Supporting conditions and risk assumptions for the document content.</p>
+                <span>No preview available yet</span>
+                <p>Upload a document and ask a question to see matched chunks.</p>
               </div>
             </section>
           </article>
@@ -147,7 +148,7 @@
                   class="citation"
                   type="button"
                   *ngFor="let citation of message.citations"
-                  (click)="openCitation(citation.source)"
+                  (click)="openCitation(citation.anchor || citation.source)"
                 >
                   {{ citation.source }}
                 </button>

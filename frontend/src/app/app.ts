@@ -10,13 +10,19 @@ interface HistoryItem {
 interface Citation {
   source: string;
   snippet: string;
-  ref?: string;
+  anchor?: string;
 }
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   citations?: Citation[];
+}
+
+interface ChunkPreview {
+  ref: string;
+  snippet: string;
+  anchor: string;
 }
 
 @Component({
@@ -32,6 +38,7 @@ export class App {
   protected readonly selectedFileIndex = signal(0);
   protected readonly processingStep = signal(0);
   protected readonly activeCitation = signal<string | null>(null);
+  protected readonly chunkPreviews = signal<ChunkPreview[]>([]);
   protected readonly sidebarCollapsed = signal(false);
   protected readonly chatInput = signal('');
   protected readonly chatMessages = signal<ChatMessage[]>([]);
@@ -116,11 +123,17 @@ export class App {
     });
 
     try {
-      await Promise.all([uploadPromise, intervalPromise]);
+      const response = await uploadPromise;
+      const result = await response.json();
+      if (!response.ok || result.status !== 'success') {
+        throw new Error(result.message || `Upload failed with status ${response.status}`);
+      }
+      this.chunkPreviews.set(result.chunk_previews || []);
+      await intervalPromise;
+      this.stage.set('active');
     } catch (error) {
       console.error('Upload failed', error);
-    } finally {
-      this.stage.set('active');
+      this.stage.set('empty');
     }
   }
 
@@ -150,7 +163,7 @@ export class App {
     if (this.chatStreaming()) return;
     this.chatStreaming.set(true);
 
-    const assistantMessage: ChatMessage = { role: 'assistant', text: '' };
+    const assistantMessage: ChatMessage = { role: 'assistant', text: 'Thinking...' };
     const messages = [...this.chatMessages(), assistantMessage];
     this.chatMessages.set(messages);
     const targetIndex = messages.length - 1;
@@ -160,7 +173,6 @@ export class App {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
         },
         body: JSON.stringify({ question }),
       });
@@ -169,65 +181,10 @@ export class App {
         throw new Error(`Chat request failed with status ${response.status}`);
       }
 
-      if (!response.body) {
-        throw new Error('Streaming response not available');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let eventName = '';
-      let eventData = '';
-      let currentText = '';
-
-      const emitEvent = () => {
-        if (!eventName && !eventData) return;
-        const data = eventData.trim();
-        if (eventName === 'chunk') {
-          currentText += data + '\n';
-          this.updateAssistantMessage(targetIndex, currentText.trim());
-        } else if (eventName === 'result') {
-          try {
-            const payload = JSON.parse(data);
-            currentText = payload.answer || currentText;
-            this.updateAssistantMessage(targetIndex, currentText.trim(), payload.citations || []);
-          } catch (err) {
-            this.updateAssistantMessage(targetIndex, `Failed to parse chat response: ${err}`);
-          }
-        }
-        eventName = '';
-        eventData = '';
-      };
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line) {
-            emitEvent();
-            continue;
-          }
-          if (line.startsWith('event:')) {
-            eventName = line.slice(6).trim();
-          } else if (line.startsWith('data:')) {
-            const dataLine = line.slice(5).trimStart();
-            eventData += (eventData ? '\n' : '') + dataLine;
-          }
-        }
-      }
-
-      if (buffer.length > 0) {
-        if (buffer.startsWith('event:')) {
-          eventName = buffer.slice(6).trim();
-        } else if (buffer.startsWith('data:')) {
-          eventData += buffer.slice(5).trimStart();
-        }
-        emitEvent();
-      }
+      const payload = await response.json();
+      const answer = payload.answer || 'No answer returned.';
+      const citations = payload.citations || [];
+      this.updateAssistantMessage(targetIndex, answer.trim(), citations);
     } catch (error) {
       console.error(error);
       this.chatMessages.set([

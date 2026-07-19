@@ -1,9 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings, OpenAI
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import Chroma
 from pathlib import Path
 from typing import Any
 from bs4 import BeautifulSoup
@@ -11,7 +10,6 @@ from docx import Document
 from PyPDF2 import PdfReader
 import shutil
 import os
-import json
 
 app = FastAPI()
 
@@ -44,8 +42,13 @@ async def upload_document(file: UploadFile = File(...)):
     # 3. Chunk the text into smaller pieces (Crucial for RAG)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
+    base_anchor = Path(file.filename).stem.replace(" ", "_")
     metadatas = [
-        {"source": file.filename, "chunk_index": idx + 1}
+        {
+            "source": file.filename,
+            "chunk_index": idx + 1,
+            "anchor": f"{base_anchor}_chunk_{idx + 1}",
+        }
         for idx in range(len(chunks))
     ]
     
@@ -60,10 +63,20 @@ async def upload_document(file: UploadFile = File(...)):
     else:
         db = Chroma.from_texts(chunks, embeddings, metadatas=metadatas, persist_directory=DB_DIR)
     
+    chunk_previews = [
+        {
+            "ref": f"{file.filename} - chunk {idx + 1}",
+            "anchor": metadata["anchor"],
+            "snippet": chunk[:200],
+        }
+        for idx, (chunk, metadata) in enumerate(zip(chunks[:10], metadatas[:10]))
+    ]
+
     return {
         "status": "success",
         "filename": file.filename,
-        "message": f"Successfully split into {len(chunks)} chunks and saved to Vector DB!"
+        "message": f"Successfully split into {len(chunks)} chunks and saved to Vector DB!",
+        "chunk_previews": chunk_previews,
     }
 
 
@@ -124,6 +137,9 @@ async def chat(request: Request):
     db = load_vector_store()
     docs = db.similarity_search(question, k=3)
 
+    if not docs:
+        return {"answer": "No matching content found in the uploaded document.", "citations": []}
+
     prompt = build_prompt(question, docs)
     # Make sure OPENAI_API_BASE is set to the DeepSeek official API endpoint when using DeepSeek-V3
     llm = OpenAI(model="DeepSeek-V3", temperature=0.2, max_tokens=512)
@@ -134,21 +150,14 @@ async def chat(request: Request):
         metadata = getattr(doc, "metadata", {}) or {}
         source = metadata.get("source", f"document_{index}")
         chunk_index = metadata.get("chunk_index")
+        anchor = metadata.get("anchor")
         citations.append({
             "source": f"{source}{f' – chunk {chunk_index}' if chunk_index else ''}",
             "snippet": getattr(doc, "page_content", "")[:200],
+            "anchor": anchor,
         })
 
-    async def event_stream():
-        chunk_size = 120
-        for start in range(0, len(answer), chunk_size):
-            chunk = answer[start : start + chunk_size]
-            yield f"event: chunk\ndata: {chunk}\n\n"
-
-        result_payload = {
-            "answer": answer,
-            "citations": citations,
-        }
-        yield f"event: result\ndata: {json.dumps(result_payload)}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return {
+        "answer": answer,
+        "citations": citations,
+    }
