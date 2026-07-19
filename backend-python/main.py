@@ -44,6 +44,10 @@ async def upload_document(file: UploadFile = File(...)):
     # 3. Chunk the text into smaller pieces (Crucial for RAG)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
+    metadatas = [
+        {"source": file.filename, "chunk_index": idx + 1}
+        for idx in range(len(chunks))
+    ]
     
     # 4. Convert chunks to embeddings and save to local Chroma vector database
     # NOTE: You must set your OPENAI_API_KEY as an environment variable before running this
@@ -51,10 +55,10 @@ async def upload_document(file: UploadFile = File(...)):
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     if os.path.exists(DB_DIR) and any(Path(DB_DIR).iterdir()):
         db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
-        db.add_texts(chunks)
+        db.add_texts(chunks, metadatas=metadatas)
         db.persist()
     else:
-        db = Chroma.from_texts(chunks, embeddings, persist_directory=DB_DIR)
+        db = Chroma.from_texts(chunks, embeddings, metadatas=metadatas, persist_directory=DB_DIR)
     
     return {
         "status": "success",
@@ -127,8 +131,13 @@ async def chat(request: Request):
 
     citations = []
     for index, doc in enumerate(docs, start=1):
-        source = getattr(doc, "metadata", {}).get("source", f"document_{index}")
-        citations.append({"source": source, "snippet": getattr(doc, "page_content", "")[:200]})
+        metadata = getattr(doc, "metadata", {}) or {}
+        source = metadata.get("source", f"document_{index}")
+        chunk_index = metadata.get("chunk_index")
+        citations.append({
+            "source": f"{source}{f' – chunk {chunk_index}' if chunk_index else ''}",
+            "snippet": getattr(doc, "page_content", "")[:200],
+        })
 
     async def event_stream():
         chunk_size = 120

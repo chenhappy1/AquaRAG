@@ -8,9 +8,9 @@ interface HistoryItem {
 }
 
 interface Citation {
-  page: number;
-  text: string;
-  ref: string;
+  source: string;
+  snippet: string;
+  ref?: string;
 }
 
 interface ChatMessage {

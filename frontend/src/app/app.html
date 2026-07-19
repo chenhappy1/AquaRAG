@@ -71,9 +71,9 @@
         <div class="drop-zone" *ngIf="stage() === 'empty'" (drop)="onDrop($event)" (dragover)="onDragOver($event)">
           <div>
             <p class="drop-title">Drag and drop a document</p>
-            <p class="drop-copy">Supported formats: PDF, DOCX, TXT, MD up to 25MB</p>
+            <p class="drop-copy">Supported formats: PDF, DOCX, HTML, TXT, MD up to 25MB</p>
             <button type="button" class="browse-button" (click)="$any(fileInput).click()">Browse files</button>
-            <input #fileInput type="file" accept=".pdf,.docx,.txt,.md" hidden (change)="onFilesSelected($event)" />
+            <input #fileInput type="file" accept=".pdf,.docx,.html,.htm,.txt,.md" hidden (change)="onFilesSelected($event)" />
           </div>
         </div>
 
@@ -147,10 +147,11 @@
                   class="citation"
                   type="button"
                   *ngFor="let citation of message.citations"
-                  (click)="openCitation(citation.ref)"
+                  (click)="openCitation(citation.source)"
                 >
-                  {{ citation.ref }} • Page {{ citation.page }}
+                  {{ citation.source }}
                 </button>
+                <p class="citation-snippet" *ngFor="let citation of message.citations">{{ citation.snippet }}</p>
               </div>
             </div>
             <div *ngIf="chatMessages().length === 0" class="empty-chat-placeholder">
