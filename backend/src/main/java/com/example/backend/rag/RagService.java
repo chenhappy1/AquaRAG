@@ -1,7 +1,10 @@
 package com.example.backend.rag;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -19,16 +22,17 @@ public class RagService {
 
     public record ChatResult(String answer, List<Citation> citations) {}
 
-    private final List<DocumentChunk> memory = new CopyOnWriteArrayList<>();
+    private final Map<String, List<DocumentChunk>> memoryByUser = new ConcurrentHashMap<>();
     private final Tika tika = new Tika();
 
-    public void ingestFile(MultipartFile file) {
+    public void ingestFile(String username, MultipartFile file) {
         try {
             String text = tika.parseToString(file.getInputStream());
             List<String> chunks = chunkText(text);
-            AtomicInteger pageCounter = new AtomicInteger(memory.size() / 3);
-            memory.addAll(chunks.stream()
-                    .map(chunk -> new DocumentChunk(generateId(), chunk, pageCounter.incrementAndGet()))
+            List<DocumentChunk> userMemory = memoryByUser.computeIfAbsent(username, key -> new CopyOnWriteArrayList<>());
+            AtomicInteger pageCounter = new AtomicInteger(userMemory.size() / 3);
+            userMemory.addAll(chunks.stream()
+                    .map(chunk -> new DocumentChunk(generateId(userMemory), chunk, pageCounter.incrementAndGet()))
                     .collect(Collectors.toList()));
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to ingest file", ex);
@@ -48,17 +52,18 @@ public class RagService {
         return chunks.stream().filter(chunk -> !chunk.isBlank()).collect(Collectors.toList());
     }
 
-    private String generateId() {
-        return "chunk-" + System.currentTimeMillis() + "-" + (memory.size() + 1);
+    private String generateId(List<DocumentChunk> userMemory) {
+        return "chunk-" + System.currentTimeMillis() + "-" + (userMemory.size() + 1);
     }
 
-    public ChatResult generateChatResult(String question) {
+    public ChatResult generateChatResult(String username, String question) {
         var queryTerm = question.toLowerCase().split("\\s+", 2)[0];
-        var best = memory.stream()
+        var userMemory = memoryByUser.getOrDefault(username, Collections.emptyList());
+        var best = userMemory.stream()
                 .filter(chunk -> chunk.text().toLowerCase().contains(queryTerm))
                 .findFirst();
 
-        var citations = memory.stream()
+        var citations = userMemory.stream()
                 .filter(chunk -> chunk.text().toLowerCase().contains(queryTerm))
                 .limit(3)
                 .map(chunk -> new Citation(chunk.page(), snippet(chunk.text()), "page-" + chunk.page()))
@@ -83,8 +88,9 @@ public class RagService {
         return text.substring(0, 120).trim() + "...";
     }
 
-    public List<String> findTopChunks(String question) {
-        return memory.stream()
+    public List<String> findTopChunks(String username, String question) {
+        var userMemory = memoryByUser.getOrDefault(username, Collections.emptyList());
+        return userMemory.stream()
                 .filter(chunk -> chunk.text().toLowerCase().contains(question.toLowerCase().split("\\s+", 2)[0]))
                 .limit(3)
                 .map(DocumentChunk::text)

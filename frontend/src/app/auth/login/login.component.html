@@ -1,0 +1,34 @@
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">A</span>
+      <div>
+        <h1>AquaRAG</h1>
+        <p>Sign in to your workspace</p>
+      </div>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label class="field">
+        <span>Username</span>
+        <input formControlName="username" type="text" placeholder="chenfei" />
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <input formControlName="password" type="password" placeholder="Enter password" />
+      </label>
+
+      <p class="error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+
+      <button class="primary-button" type="submit" [disabled]="isSubmitting()">
+        {{ isSubmitting() ? 'Signing in...' : 'Login' }}
+      </button>
+    </form>
+
+    <p class="footer-link">
+      Need an account?
+      <a routerLink="/register">Create one</a>
+    </p>
+  </div>
+</div>

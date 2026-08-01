@@ -1,0 +1,39 @@
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">A</span>
+      <div>
+        <h1>Create account</h1>
+        <p>Join AquaRAG and start chatting</p>
+      </div>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label class="field">
+        <span>Username</span>
+        <input formControlName="username" type="text" placeholder="chenfei" />
+      </label>
+
+      <label class="field">
+        <span>Email</span>
+        <input formControlName="email" type="email" placeholder="you@example.com" />
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <input formControlName="password" type="password" placeholder="Create password" />
+      </label>
+
+      <p class="error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+
+      <button class="primary-button" type="submit" [disabled]="isSubmitting()">
+        {{ isSubmitting() ? 'Creating account...' : 'Register' }}
+      </button>
+    </form>
+
+    <p class="footer-link">
+      Already have an account?
+      <a routerLink="/login">Sign in</a>
+    </p>
+  </div>
+</div>

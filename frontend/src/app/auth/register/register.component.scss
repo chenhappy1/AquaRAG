@@ -1,0 +1,90 @@
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+}
+
+.auth-card {
+  width: min(100%, 430px);
+  background: white;
+  border-radius: 28px;
+  padding: 2rem;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.12);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.auth-brand h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.auth-brand p {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #4f46e5, #ec4899);
+  color: white;
+  font-weight: 700;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+  color: #334155;
+}
+
+.field input {
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 0.95rem 1rem;
+}
+
+.primary-button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.95rem 1rem;
+  color: white;
+  cursor: pointer;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+}
+
+.primary-button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.error {
+  color: #dc2626;
+  margin: 0;
+}
+
+.footer-link {
+  margin-top: 1rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.footer-link a {
+  color: #4f46e5;
+  text-decoration: none;
+}

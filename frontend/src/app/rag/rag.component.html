@@ -1,0 +1,193 @@
+<div class="app-shell">
+  <aside class="sidebar" [class.collapsed]="sidebarCollapsed()">
+    <div class="sidebar-top">
+      <button class="sidebar-toggle" type="button" (click)="toggleSidebar()">
+        <span *ngIf="!sidebarCollapsed()">≡</span>
+        <span *ngIf="sidebarCollapsed()">▸</span>
+      </button>
+      <div class="brand" *ngIf="!sidebarCollapsed()">
+        <span class="brand-mark">A</span>
+        <div>
+          <p class="brand-name">AquaRAG</p>
+          <p class="brand-subtitle">Document RAG</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" *ngIf="!sidebarCollapsed()">
+      <h2>History</h2>
+      <ul>
+        <li *ngFor="let item of historyItems">
+          <span>{{ item.title }}</span>
+          <small>{{ item.time }} • {{ item.status }}</small>
+        </li>
+      </ul>
+    </div>
+
+    <div class="sidebar-section" *ngIf="!sidebarCollapsed()">
+      <h2>Files</h2>
+      <ul class="file-list">
+        <li
+          *ngFor="let file of uploadedFiles(); let i = index"
+          [class.active]="i === selectedFileIndex()"
+          (click)="selectFile(i)"
+        >
+          <span>{{ file.name }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="sidebar-section" *ngIf="!sidebarCollapsed()">
+      <h2>Account</h2>
+      <div class="account-card">
+        <div class="avatar">{{ (authService.currentUser()?.username || 'U').slice(0, 2).toUpperCase() }}</div>
+        <div>
+          <p>{{ authService.currentUser()?.username || 'User' }}</p>
+          <small>{{ authService.currentUser()?.email || 'Signed in' }}</small>
+          <button class="logout-button" type="button" (click)="logout()">Logout</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <section class="viewer">
+      <header class="panel-header">
+        <div>
+          <p class="panel-label">Document Viewer</p>
+          <h1>{{ selectedFileName }}</h1>
+          <p class="panel-copy">{{ documentSummary }}</p>
+        </div>
+        <div class="file-switcher" *ngIf="uploadedFiles().length > 1">
+          <label for="file-select">Switch file</label>
+          <select id="file-select" (change)="selectFile($any($event.target).value)">
+            <option *ngFor="let file of uploadedFiles(); let i = index" [value]="i">
+              {{ file.name }}
+            </option>
+          </select>
+        </div>
+      </header>
+
+      <div class="viewer-body">
+        <div class="drop-zone" *ngIf="stage() === 'empty'" (drop)="onDrop($event)" (dragover)="onDragOver($event)">
+          <div>
+            <p class="drop-title">Drag and drop a document</p>
+            <p class="drop-copy">Supported formats: PDF, DOCX, HTML, TXT, MD up to 25MB</p>
+            <button type="button" class="browse-button" (click)="$any(fileInput).click()">Browse files</button>
+            <input #fileInput type="file" accept=".pdf,.docx,.html,.htm,.txt,.md" hidden (change)="onFilesSelected($event)" />
+          </div>
+        </div>
+
+        <div class="processing-state" *ngIf="stage() === 'processing'">
+          <div class="status-bar">
+            <p class="status-label">{{ processingText() }}</p>
+            <div class="progress-bar"><span [style.width.%]="(processingStep() + 1) * 33"></span></div>
+          </div>
+          <div class="skeleton-grid">
+            <div class="skeleton-card" *ngFor="let i of [1,2,3]"></div>
+          </div>
+        </div>
+
+        <div class="document-panel" *ngIf="stage() === 'active'">
+          <div class="doc-meta-bar">
+            <span class="doc-tag">Active document</span>
+            <span class="doc-tag">Source ready</span>
+          </div>
+          <article class="document-preview">
+            <section
+              class="document-block"
+              *ngFor="let preview of chunkPreviews(); let idx = index"
+              [attr.data-ref]="preview.anchor"
+              [id]="preview.anchor"
+              [class.highlighted]="activeCitation() === preview.anchor"
+              (click)="openCitation(preview.anchor)"
+            >
+              <div class="document-heading">
+                <span>{{ preview.ref }}</span>
+                <p>{{ preview.snippet }}</p>
+              </div>
+            </section>
+            <section *ngIf="chunkPreviews().length === 0" class="document-block empty">
+              <div class="document-heading">
+                <span>No preview available yet</span>
+                <p>Upload a document and ask a question to see matched chunks.</p>
+              </div>
+            </section>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chat">
+      <header class="panel-header chat-header">
+        <div>
+          <p class="panel-label">Chat Interface</p>
+          <h1>Ask about your document</h1>
+        </div>
+        <div class="status-pill" *ngIf="stage() === 'active'">Ready to answer</div>
+      </header>
+
+      <div class="chat-body">
+        <div class="welcome-card" *ngIf="stage() === 'empty'">
+          <h2>Get started with your first upload</h2>
+          <p>Upload a document and the right pane will become your RAG-powered assistant.</p>
+        </div>
+
+        <div class="chat-skeleton" *ngIf="stage() === 'processing'">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-line"></div>
+        </div>
+
+        <div *ngIf="stage() === 'active'" class="active-chat">
+          <div class="chat-messages">
+            <div *ngFor="let message of chatMessages(); let i = index" class="chat-message" [class.assistant]="message.role === 'assistant'" [class.user]="message.role === 'user'">
+              <div class="message-label">{{ message.role === 'assistant' ? 'AI' : 'You' }}</div>
+              <p>{{ message.text }}</p>
+              <div class="message-citations" *ngIf="message.citations?.length">
+                <button
+                  class="citation"
+                  type="button"
+                  *ngFor="let citation of message.citations"
+                  (click)="openCitation(citation.anchor || citation.source)"
+                >
+                  {{ citation.source }}
+                </button>
+                <p class="citation-snippet" *ngFor="let citation of message.citations">{{ citation.snippet }}</p>
+              </div>
+            </div>
+            <div *ngIf="chatMessages().length === 0" class="empty-chat-placeholder">
+              <p>Upload completed. Ask a question about the document to start the conversation.</p>
+            </div>
+          </div>
+
+          <div class="suggested-prompts">
+            <p class="suggested-label">Suggested prompts</p>
+            <div class="prompt-list">
+              <button type="button" *ngFor="let prompt of samplePrompts" (click)="chatInput.set(prompt); sendChat()">{{ prompt }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="chat-footer" *ngIf="stage() === 'active'">
+        <input
+          type="text"
+          class="chat-input"
+          [value]="chatInput()"
+          (input)="chatInput.set($any($event.target).value)"
+          placeholder="Ask anything about {{ selectedFileName }}..."
+          [readonly]="chatStreaming()"
+        />
+        <button
+          type="button"
+          class="send-button"
+          (click)="sendChat()"
+          [disabled]="chatStreaming() || !chatInput().trim()"
+        >
+          Send
+        </button>
+      </footer>
+    </section>
+  </main>
+</div>
