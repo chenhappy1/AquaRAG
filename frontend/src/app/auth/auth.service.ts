@@ -22,13 +22,13 @@ export class AuthService {
   constructor(private readonly http: HttpClient) {}
 
   login(credentials: { username: string; password: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>('/api/login', credentials).pipe(
+    return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
       tap((response) => this.persistSession(response))
     );
   }
 
   register(payload: { username: string; password: string; email: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>('/api/register', payload).pipe(
+    return this.http.post<AuthResponse>('/api/auth/register', payload).pipe(
       tap((response) => this.persistSession(response))
     );
   }
