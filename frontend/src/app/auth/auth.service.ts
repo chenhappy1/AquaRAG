@@ -4,7 +4,8 @@ import { Observable, tap } from 'rxjs';
 
 export interface AuthUser {
   id: number;
-  username: string;
+  firstname: string;
+  lastname: string;
   email: string;
 }
 
@@ -21,13 +22,13 @@ export class AuthService {
 
   constructor(private readonly http: HttpClient) {}
 
-  login(credentials: { username: string; password: string }): Observable<AuthResponse> {
+  login(credentials: { firstname: string; lastname: string; password: string }): Observable<AuthResponse> {
     return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
       tap((response) => this.persistSession(response))
     );
   }
 
-  register(payload: { username: string; password: string; email: string }): Observable<AuthResponse> {
+  register(payload: { firstname: string; lastname: string; password: string; email: string }): Observable<AuthResponse> {
     return this.http.post<AuthResponse>('/api/auth/register', payload).pipe(
       tap((response) => {
         if (response?.token && response?.user) {

@@ -22,7 +22,8 @@ export class RegisterComponent {
     private readonly router: Router
   ) {
     this.form = this.formBuilder.group({
-      username: ['', [Validators.required]],
+      firstname: ['', [Validators.required]],
+      lastname: ['', [Validators.required]],
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required]],
     });
@@ -34,15 +35,15 @@ export class RegisterComponent {
       return;
     }
 
-    const { username, email, password } = this.form.getRawValue();
-    if (!username || !email || !password) {
+    const { firstname, lastname, email, password } = this.form.getRawValue();
+    if (!firstname || !lastname || !email || !password) {
       return;
     }
 
     this.errorMessage.set(null);
     this.isSubmitting.set(true);
 
-    this.authService.register({ username, email, password }).subscribe({
+    this.authService.register({ firstname, lastname, email, password }).subscribe({
       next: () => this.router.navigate(['/chat']),
       error: () => {
         this.errorMessage.set('Unable to create account right now.');

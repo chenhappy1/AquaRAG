@@ -7,9 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
 
-    Optional<User> findByUsername(String username);
+    Optional<User> findByFirstnameAndLastname(String firstname, String lastname);
 
-    boolean existsByUsername(String username);
+    boolean existsByFirstnameAndLastname(String firstname, String lastname);
 
     boolean existsByEmail(String email);
 }

@@ -39,14 +39,26 @@
 
     <div class="sidebar-section" *ngIf="!sidebarCollapsed()">
       <h2>Account</h2>
-      <div class="account-card">
-        <div class="avatar">{{ (authService.currentUser()?.username || 'U').slice(0, 2).toUpperCase() }}</div>
-        <div>
-          <p>{{ authService.currentUser()?.username || 'User' }}</p>
-          <small>{{ authService.currentUser()?.email || 'Signed in' }}</small>
-          <button class="logout-button" type="button" (click)="logout()">Logout</button>
+      <ng-container *ngIf="authService.currentUser() as user; else anonUser">
+        <div class="account-card">
+          <div class="avatar">{{ ((user.firstname || 'U') + (user.lastname ? user.lastname.charAt(0) : '')).slice(0, 2).toUpperCase() }}</div>
+          <div>
+            <p>{{ user.firstname + ' ' + user.lastname }}</p>
+            <small>{{ user.email || 'Signed in' }}</small>
+            <button class="logout-button" type="button" (click)="logout()">Logout</button>
+          </div>
         </div>
-      </div>
+      </ng-container>
+      <ng-template #anonUser>
+        <div class="account-card">
+          <div class="avatar">U</div>
+          <div>
+            <p>User</p>
+            <small>Signed in</small>
+            <button class="logout-button" type="button" (click)="logout()">Logout</button>
+          </div>
+        </div>
+      </ng-template>
     </div>
   </aside>
 
