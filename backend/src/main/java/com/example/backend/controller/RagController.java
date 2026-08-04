@@ -1,4 +1,4 @@
-package com.example.backend.rag.controller;
+package com.example.backend.controller;
 
 import java.time.Duration;
 
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.example.backend.rag.service.RagService;
+import com.example.backend.service.RagService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
