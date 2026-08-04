@@ -1,4 +1,4 @@
-package com.example.backend.rag;
+package com.example.backend.rag.service;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -1,4 +1,4 @@
-package com.example.backend.rag;
+package com.example.backend.rag.controller;
 
 import java.util.Map;
 
