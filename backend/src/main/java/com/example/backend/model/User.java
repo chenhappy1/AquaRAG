@@ -7,7 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
@@ -15,8 +17,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID) // 👈 一行搞定，原生支持 UUID 生成
+    @Column(name = "id", updatable = false, nullable = false)
+    private java.util.UUID id; 
 
     private String username;
 
