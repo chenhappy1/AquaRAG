@@ -33,13 +33,10 @@ public class User {
     public User() {
     }
 
-    public User(UUID id, String username, String email, String password, LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this.id = id;
+    public User(String username, String email, String password) {
         this.username = username;
         this.email = email;
         this.password = password;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
     }
 
     public UUID getId() {
@@ -90,50 +87,4 @@ public class User {
         this.updatedAt = updatedAt;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        private UUID id;
-        private String username;
-        private String email;
-        private String password;
-        private LocalDateTime createdAt;
-        private LocalDateTime updatedAt;
-
-        public Builder id(UUID id) {
-            this.id = id;
-            return this;
-        }
-
-        public Builder username(String username) {
-            this.username = username;
-            return this;
-        }
-
-        public Builder email(String email) {
-            this.email = email;
-            return this;
-        }
-
-        public Builder password(String password) {
-            this.password = password;
-            return this;
-        }
-
-        public Builder createdAt(LocalDateTime createdAt) {
-            this.createdAt = createdAt;
-            return this;
-        }
-
-        public Builder updatedAt(LocalDateTime updatedAt) {
-            this.updatedAt = updatedAt;
-            return this;
-        }
-
-        public User build() {
-            return new User(id, username, email, password, createdAt, updatedAt);
-        }
-    }
 }

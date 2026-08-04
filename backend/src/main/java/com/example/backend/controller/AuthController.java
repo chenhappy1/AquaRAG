@@ -44,11 +44,7 @@ public class AuthController {
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
-        User user = User.builder()
-            .username(request.username())
-            .email(request.email())
-            .password(encodedPassword)
-            .build();
+        User user = new User(request.username(), request.email(), encodedPassword);
 
         User savedUser = userRepository.save(user);
         RegisterResponse response = new RegisterResponse(savedUser.getId(), savedUser.getUsername(), savedUser.getEmail());
