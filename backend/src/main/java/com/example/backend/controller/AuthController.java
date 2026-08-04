@@ -39,10 +39,10 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
-            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "用户名已被占用"));
+            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "Username is already taken"));
         }
         if (userRepository.existsByEmail(request.email())) {
-            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "邮箱已被注册"));
+            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "Email is already registered"));
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
