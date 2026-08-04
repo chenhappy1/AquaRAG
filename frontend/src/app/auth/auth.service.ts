@@ -2,8 +2,6 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
-const API_BASE_URL = 'http://localhost:9000';
-
 export interface AuthUser {
   id: number;
   username: string;
@@ -24,13 +22,13 @@ export class AuthService {
   constructor(private readonly http: HttpClient) {}
 
   login(credentials: { username: string; password: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${API_BASE_URL}/api/auth/login`, credentials).pipe(
+    return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
       tap((response) => this.persistSession(response))
     );
   }
 
   register(payload: { username: string; password: string; email: string }): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${API_BASE_URL}/api/auth/register`, payload).pipe(
+    return this.http.post<AuthResponse>('/api/auth/register', payload).pipe(
       tap((response) => {
         if (response?.token && response?.user) {
           this.persistSession(response);
