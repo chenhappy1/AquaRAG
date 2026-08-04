@@ -1,43 +1,66 @@
 package com.example.backend.controller;
 
+import com.example.backend.model.User;
+import com.example.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
+
+    private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest request) {
-        if ("chenfei".equals(request.username()) && "123456".equals(request.password())) {
-            String token = "demo-jwt-token-for-" + request.username();
-            return ResponseEntity.ok(Map.of(
-                "token", token,
-                "user", Map.of(
-                    "id", 1,
-                    "username", request.username(),
-                    "email", "chenfei@example.com"
-                )
-            ));
-        }
-
-        return ResponseEntity.status(401).body(Map.of("message", "Invalid credentials"));
+        return userRepository.findByUsername(request.username())
+            .filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))
+            .map(user -> {
+                String token = "demo-jwt-token-for-" + user.getUsername();
+                return ResponseEntity.ok(Map.<String, Object>of(
+                    "token", token,
+                    "user", Map.<String, Object>of(
+                        "id", user.getId(),
+                        "username", user.getUsername(),
+                        "email", user.getEmail()
+                    )
+                ));
+            })
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.<String, Object>of("message", "Invalid credentials")));
     }
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest request) {
-        String token = "demo-jwt-token-for-" + request.username();
-        return ResponseEntity.ok(Map.of(
+        if (userRepository.existsByUsername(request.username())) {
+            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "用户名已被占用"));
+        }
+        if (userRepository.existsByEmail(request.email())) {
+            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "邮箱已被注册"));
+        }
+
+        String encodedPassword = passwordEncoder.encode(request.password());
+        User user = User.builder()
+            .username(request.username())
+            .email(request.email())
+            .password(encodedPassword)
+            .build();
+
+        User savedUser = userRepository.save(user);
+        String token = "demo-jwt-token-for-" + savedUser.getUsername();
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.<String, Object>of(
             "token", token,
-            "user", Map.of(
-                "id", 2,
-                "username", request.username(),
-                "email", request.email()
+            "user", Map.<String, Object>of(
+                "id", savedUser.getId(),
+                "username", savedUser.getUsername(),
+                "email", savedUser.getEmail()
             )
         ));
     }
