@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.dto.UserDTO;
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,12 +38,12 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<UserDTO> register(@RequestBody RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
-            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "Username is already taken"));
+            return ResponseEntity.badRequest().body(null);
         }
         if (userRepository.existsByEmail(request.email())) {
-            return ResponseEntity.badRequest().body(Map.<String, Object>of("error", "Email is already registered"));
+            return ResponseEntity.badRequest().body(null);
         }
 
         String encodedPassword = passwordEncoder.encode(request.password());
@@ -53,16 +54,9 @@ public class AuthController {
             .build();
 
         User savedUser = userRepository.save(user);
-        String token = "demo-jwt-token-for-" + savedUser.getUsername();
+        UserDTO userDTO = new UserDTO(savedUser.getId(), savedUser.getUsername(), savedUser.getEmail());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.<String, Object>of(
-            "token", token,
-            "user", Map.<String, Object>of(
-                "id", savedUser.getId(),
-                "username", savedUser.getUsername(),
-                "email", savedUser.getEmail()
-            )
-        ));
+        return ResponseEntity.status(HttpStatus.CREATED).body(userDTO);
     }
 
     public record LoginRequest(String username, String password) {}
