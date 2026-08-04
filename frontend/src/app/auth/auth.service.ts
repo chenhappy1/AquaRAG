@@ -9,8 +9,8 @@ export interface AuthUser {
 }
 
 export interface AuthResponse {
-  token: string;
-  user: AuthUser;
+  token?: string;
+  user?: AuthUser;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -29,7 +29,11 @@ export class AuthService {
 
   register(payload: { username: string; password: string; email: string }): Observable<AuthResponse> {
     return this.http.post<AuthResponse>('/api/auth/register', payload).pipe(
-      tap((response) => this.persistSession(response))
+      tap((response) => {
+        if (response?.token && response?.user) {
+          this.persistSession(response);
+        }
+      })
     );
   }
 
@@ -52,9 +56,16 @@ export class AuthService {
   }
 
   private persistSession(response: AuthResponse): void {
-    localStorage.setItem(this.tokenStorageKey, response.token);
-    localStorage.setItem(this.userStorageKey, JSON.stringify(response.user));
-    this.currentUserSignal.set(response.user);
+    const token = response.token;
+    const user = response.user;
+
+    if (!token || !user) {
+      return;
+    }
+
+    localStorage.setItem(this.tokenStorageKey, token);
+    localStorage.setItem(this.userStorageKey, JSON.stringify(user));
+    this.currentUserSignal.set(user);
   }
 
   private readStoredUser(): AuthUser | null {
