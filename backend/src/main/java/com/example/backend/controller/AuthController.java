@@ -1,6 +1,9 @@
 package com.example.backend.controller;
 
-import com.example.backend.dto.UserDTO;
+import com.example.backend.dto.LoginRequest;
+import com.example.backend.dto.LoginResponse;
+import com.example.backend.dto.RegisterRequest;
+import com.example.backend.dto.RegisterResponse;
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,25 +23,19 @@ public class AuthController {
     private final BCryptPasswordEncoder passwordEncoder;
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
         return userRepository.findByUsername(request.username())
             .filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))
             .map(user -> {
                 String token = "demo-jwt-token-for-" + user.getUsername();
-                return ResponseEntity.ok(Map.<String, Object>of(
-                    "token", token,
-                    "user", Map.<String, Object>of(
-                        "id", user.getId(),
-                        "username", user.getUsername(),
-                        "email", user.getEmail()
-                    )
-                ));
+                LoginResponse.UserFields userFields = new LoginResponse.UserFields(user.getId(), user.getUsername(), user.getEmail());
+                return ResponseEntity.ok(new LoginResponse(token, userFields));
             })
-            .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.<String, Object>of("message", "Invalid credentials")));
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null));
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserDTO> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
             return ResponseEntity.badRequest().body(null);
         }
@@ -54,12 +51,8 @@ public class AuthController {
             .build();
 
         User savedUser = userRepository.save(user);
-        UserDTO userDTO = new UserDTO(savedUser.getId(), savedUser.getUsername(), savedUser.getEmail());
+        RegisterResponse response = new RegisterResponse(savedUser.getId(), savedUser.getUsername(), savedUser.getEmail());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(userDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-
-    public record LoginRequest(String username, String password) {}
-
-    public record RegisterRequest(String username, String password, String email) {}
 }
