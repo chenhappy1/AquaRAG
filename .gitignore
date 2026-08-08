@@ -44,4 +44,3 @@ backend/bin/
 *.log
 jenkins.log
 nohup.out
-backend-python/jira-agent/config.json
