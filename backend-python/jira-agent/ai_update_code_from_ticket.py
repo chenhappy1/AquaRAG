@@ -1,12 +1,11 @@
 import os
 import json
-from openai import OpenAI
+from google import genai
+from google.genai import types
 
-# 使用 DeepSeek API
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)
+# 1. 初始化官方 Gemini 客户端
+# 默认会自动读取环境变量中的 GEMINI_API_KEY
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 DOCS_DIR = r"D:\AquaRAG\docs"
 CODE_ROOTS = [
@@ -14,7 +13,6 @@ CODE_ROOTS = [
     r"D:\AquaRAG\backend-python",
     r"D:\AquaRAG\frontend"
 ]
-
 
 
 def read_docs():
@@ -62,12 +60,21 @@ and should be modified.
 Return ONLY a JSON list of file paths.
 """
 
-    resp = client.chat.completions.create(
-        model="deepseek-chat",   # DeepSeek-R1 / DeepSeek-V3 都可以
-        messages=[{"role": "user", "content": prompt}],
+    # 2. 使用 interactions.create 调用 Gemini 3 Flash Preview
+    # 使用 response_mime_type 强制输出合法 JSON
+    resp = client.interactions.create(
+        model='models/gemini-3-flash-preview',
+        input=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)  # 开启高思考链级别
+        )
     )
 
-    content = resp.choices[0].message.content
+    # 3. 提取最终生成的文本内容
+    content = resp.steps[-1].text
+    
     try:
         selected = json.loads(content)
     except Exception:
@@ -98,15 +105,29 @@ Current Code:
 Task:
 Modify ONLY this file according to the Jira ticket and project context.
 Keep style consistent with existing code.
-Return ONLY the FULL updated code for this file.
+Return ONLY the FULL updated code for this file. Do not include markdown code block syntax (like ```python).
 """
 
-    resp = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[{"role": "user", "content": prompt}],
+    # 4. 调用模型修改文件
+    resp = client.interactions.create(
+        model='models/gemini-3-flash-preview',
+        input=prompt,
+        config=types.GenerateContentConfig(
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)
+        )
     )
 
-    new_code = resp.choices[0].message.content
+    new_code = resp.steps[-1].text
+
+    # 去除可能包含的 markdown 代码块标记
+    if new_code.strip().startswith("```"):
+        lines = new_code.strip().splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines[-1].startswith("```"):
+            lines = lines[:-1]
+        new_code = "\n".join(lines)
 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(new_code)
@@ -132,3 +153,4 @@ if __name__ == "__main__":
     Also make sure the frontend displays the age field in the chat user info.
     """
     ai_update_code_from_ticket(example_ticket)
+
