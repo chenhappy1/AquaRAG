@@ -1,12 +1,12 @@
 from read_ticket import get_jira_issue
-from ai_update_code import ai_update_code_from_ticket
+from ai_update_code_from_ticket import ai_update_code_from_ticket
 from ai_update_md import ai_update_md_from_ticket
 from auto_branch import create_branch
 from auto_commit import auto_commit
 from auto_test import run_tests
 from update_ticket import update_jira_status
 
-def auto_pipeline(issue_key):
+def agent(issue_key):
     print("📌 Step 1: Read Jira Ticket")
     ticket = get_jira_issue(issue_key)
 
@@ -36,4 +36,4 @@ def auto_pipeline(issue_key):
         print("❌ Tests failed, Jira will not be updated")
 
 if __name__ == "__main__":
-    auto_pipeline("SCRUM-6")
+    agent("SCRUM-6")
