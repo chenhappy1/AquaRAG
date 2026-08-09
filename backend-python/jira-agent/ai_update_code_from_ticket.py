@@ -40,7 +40,7 @@ def scan_code_files():
                 continue
                 
             for f in filenames:
-                if f.endswith((".py", ".java", ".ts", ".js")):
+                if f.endswith((".py", ".java", ".ts", ".js", ".html", ".css", ".json", ".yaml", ".yml")):
                     files.append(os.path.join(dirpath, f))
     return files
 
