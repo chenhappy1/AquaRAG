@@ -8,8 +8,13 @@ client = OpenAI(
     base_url="https://api.deepseek.com"
 )
 
-DOCS_DIR = "docs"
-CODE_ROOTS = ["backend", "backend-python", "frontend"]
+DOCS_DIR = r"D:\AquaRAG\docs"
+CODE_ROOTS = [
+    r"D:\AquaRAG\backend",
+    r"D:\AquaRAG\backend-python",
+    r"D:\AquaRAG\frontend"
+]
+
 
 
 def read_docs():
