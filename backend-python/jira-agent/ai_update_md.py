@@ -2,7 +2,7 @@ import os
 import json
 from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # 可换成 DeepSeek / 硅基流动
+client = OpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"))  # 可换成 DeepSeek / 硅基流动
 
 DOCS_DIR = "docs"
 
