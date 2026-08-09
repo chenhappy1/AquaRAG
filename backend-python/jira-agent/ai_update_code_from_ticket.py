@@ -2,7 +2,11 @@ import os
 import json
 from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # 或者换成 DeepSeek / 硅基流动
+# 使用 DeepSeek API
+client = OpenAI(
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com"
+)
 
 DOCS_DIR = "docs"
 CODE_ROOTS = ["backend", "backend-python", "frontend"]
@@ -50,13 +54,11 @@ Task:
 Based on the ticket and documentation, decide which code files are relevant
 and should be modified.
 
-Return ONLY a JSON list of file paths, e.g.:
-["backend/src/main/java/com/example/backend/rag/RagController.java",
- "frontend/src/app/rag/rag.service.ts"]
+Return ONLY a JSON list of file paths.
 """
 
     resp = client.chat.completions.create(
-        model="gpt-4o",  # 或者 DeepSeek-R1 对应的模型名
+        model="deepseek-chat",   # DeepSeek-R1 / DeepSeek-V3 都可以
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -64,7 +66,6 @@ Return ONLY a JSON list of file paths, e.g.:
     try:
         selected = json.loads(content)
     except Exception:
-        # 如果模型没按格式来，就简单兜底：全量返回
         selected = files
 
     return selected
@@ -92,11 +93,11 @@ Current Code:
 Task:
 Modify ONLY this file according to the Jira ticket and project context.
 Keep style consistent with existing code.
-Return ONLY the FULL updated code for this file, no explanations.
+Return ONLY the FULL updated code for this file.
 """
 
     resp = client.chat.completions.create(
-        model="gpt-4o",  # 或者 DeepSeek-R1
+        model="deepseek-chat",
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -109,16 +110,10 @@ Return ONLY the FULL updated code for this file, no explanations.
 
 
 def ai_update_code_from_ticket(ticket_text: str):
-    # 1. 读 MD 文档，建立项目理解
     docs = read_docs()
-
-    # 2. 扫描代码文件列表
     files = scan_code_files()
-
-    # 3. 让 AI 选出需要修改的文件
     target_files = ai_select_files(ticket_text, docs, files)
 
-    # 4. 逐个文件让 AI 生成修改后的代码
     for path in target_files:
         if os.path.exists(path):
             ai_update_single_file(ticket_text, docs, path)
@@ -127,7 +122,6 @@ def ai_update_code_from_ticket(ticket_text: str):
 
 
 if __name__ == "__main__":
-    # 示例：你可以从 Jira 读出 summary + description 传进来
     example_ticket = """
     Add a new field 'age' to the User model and return it in the user API response.
     Also make sure the frontend displays the age field in the chat user info.
