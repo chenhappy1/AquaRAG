@@ -45,16 +45,7 @@ def scan_code_files():
     return files
 
 
-def ai_select_files(ticket_text, docs, files):
-    print("\n===== Jira Ticket =====")
-    print(ticket_text)
-
-    print("\n===== Docs (.md) =====")
-    print(json.dumps(docs, indent=2, ensure_ascii=False))
-
-    print("\n===== Code Files =====")
-    print(files)
-    
+def ai_select_files(ticket_text, docs, files):   
     # 💡 优化 2：只把相对路径传给 AI，大大压缩 prompt 长度，节省输入 Token
     short_files = []
     for f in files:
