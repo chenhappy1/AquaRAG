@@ -1,13 +1,12 @@
 import os
 import json
+import time  # 引入时间库用于限流等待
 from google import genai
+from google.genai import types
 
 # 1. 初始化官方 Gemini 客户端
 # 默认会自动读取您在系统环境变量中配置的 GEMINI_API_KEY
 client = genai.Client()
-
-# 💡 如果您决定临时把密钥写死在代码里（不推荐），可以取消注释下面这行并填入密钥：
-# client = genai.Client(api_key="AIzaSy您的完整API密钥")
 
 DOCS_DIR = r"D:\AquaRAG\docs"
 CODE_ROOTS = [
@@ -36,6 +35,10 @@ def scan_code_files():
         if not os.path.isdir(root):
             continue
         for dirpath, _, filenames in os.walk(root):
+            # 💡 优化 1：过滤掉 node_modules 等超大依赖文件夹，防止 Token 瞬间爆炸
+            if any(ignored in dirpath for ignored in ["node_modules", ".git", "venv", "__pycache__", "dist", "build"]):
+                continue
+                
             for f in filenames:
                 if f.endswith((".py", ".java", ".ts", ".js")):
                     files.append(os.path.join(dirpath, f))
@@ -52,6 +55,14 @@ def ai_select_files(ticket_text, docs, files):
     print("\n===== Code Files =====")
     print(files)
     
+    # 💡 优化 2：只把相对路径传给 AI，大大压缩 prompt 长度，节省输入 Token
+    short_files = []
+    for f in files:
+        for root in CODE_ROOTS:
+            if f.startswith(root):
+                short_files.append(os.path.relpath(f, root))
+                break
+
     prompt = f"""
 You are an expert software engineer.
 
@@ -61,26 +72,34 @@ Jira Ticket:
 Project Documentation (.md):
 {json.dumps(docs, indent=2)}
 
-Project Code Files:
-{files}
+Project Code Files (relative paths):
+{short_files}
 
 Task:
 Based on the ticket and documentation, decide which code files are relevant
 and should be modified.
 
-Return ONLY a JSON list of file paths. Do not wrap it in markdown block syntax.
+Return ONLY a JSON list of relative file paths from the provided list. Do not wrap it in markdown block syntax.
 """
 
-    # 2. 调用 Gemini 3 Flash Preview (去除了引发 TypeError 的 config 参数)
-    resp = client.interactions.create(
-        model='models/gemini-3-flash-preview',
-        input=prompt
+    # 💡 优化 3：限流控制，发送请求前强制休眠 5 秒，防 429 报错
+    print("\n⏳ 正在等待配额刷新并调用 AI 选择文件...")
+    time.sleep(5)
+
+    # 🛠️ 【核心修改】：改用官方最标准的 generate_content 方法，彻底解决属性错误，并优雅地传参
+    resp = client.models.generate_content(
+        model='gemini-3-flash-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)  # 开启高思考链级别
+        )
     )
 
-    # 3. 提取最终生成的文本内容
-    content = resp.steps[-1].text.strip()
+    # 在 generate_content 返回的对象中，直接使用 .text 是百分百支持且最安全的
+    content = resp.text.strip() if resp.text else ""
     
-    # 鲁棒性处理：剥离模型可能自带的 ```json 或 ``` 标记
     if content.startswith("```"):
         lines = content.splitlines()
         if lines[0].startswith("```"):
@@ -90,9 +109,16 @@ Return ONLY a JSON list of file paths. Do not wrap it in markdown block syntax.
         content = "\n".join(lines).strip()
     
     try:
-        selected = json.loads(content)
+        selected_rel_paths = json.loads(content)
+        # 将 AI 返回的相对路径还原为系统中的绝对路径
+        selected = []
+        for rel in selected_rel_paths:
+            for root in CODE_ROOTS:
+                full_path = os.path.join(root, rel)
+                if os.path.exists(full_path):
+                    selected.append(full_path)
+                    break
     except Exception:
-        # 如果解析失败，则保底返回所有扫描到的文件
         print("⚠ 无法解析 AI 返回的 JSON 列表，使用保底全量文件列表。")
         selected = files
 
@@ -124,15 +150,22 @@ Keep style consistent with existing code.
 Return ONLY the FULL updated code for this file. Do not include markdown code block syntax (like ```python).
 """
 
-    # 4. 调用模型修改文件 (去除了引发 TypeError 的 config 参数)
-    resp = client.interactions.create(
-        model='models/gemini-3-flash-preview',
-        input=prompt
+    # 💡 优化 4：多文件循环修改时，每修改完一个文件强制休息 6 秒
+    print(f"\n⏳ 正在等待配额刷新并开始修改文件: {file_path} ...")
+    time.sleep(6)
+
+    # 🛠️ 【核心修改】：同步改为最可靠的 generate_content 接口
+    resp = client.models.generate_content(
+        model='gemini-3-flash-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)
+        )
     )
 
-    new_code = resp.steps[-1].text
+    new_code = resp.text if resp.text else ""
 
-    # 鲁棒性处理：去除可能包含的 markdown 代码块标记，防止这些标记被写入源码文件
     if new_code.strip().startswith("```"):
         lines = new_code.strip().splitlines()
         if lines[0].startswith("```"):
@@ -165,4 +198,3 @@ if __name__ == "__main__":
     Also make sure the frontend displays the age field in the chat user info.
     """
     ai_update_code_from_ticket(example_ticket)
-
