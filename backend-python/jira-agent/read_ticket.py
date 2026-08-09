@@ -10,7 +10,7 @@ def get_jira_issue(issue_key):
 
     if not email or not token or not domain:
         print("❌ Missing environment variables. Please set JIRA_EMAIL, JIRA_TOKEN, JIRA_DOMAIN.")
-        return
+        return None
 
     url = f"https://{domain}/rest/api/3/issue/{issue_key}"
 
@@ -22,7 +22,12 @@ def get_jira_issue(issue_key):
     }
 
     response = requests.get(url, headers=headers)
-    print(json.dumps(response.json(), indent=2))
 
-if __name__ == "__main__":
-    get_jira_issue("SCRUM-6")
+    if response.status_code != 200:
+        print("❌ Jira API 请求失败:", response.status_code, response.text)
+        return None
+
+    data = response.json()
+    print(json.dumps(data, indent=2))  # 你想打印可以保留
+    return data
+
