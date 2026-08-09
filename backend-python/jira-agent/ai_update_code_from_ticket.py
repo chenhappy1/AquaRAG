@@ -1,11 +1,13 @@
 import os
 import json
 from google import genai
-from google.genai import types
 
 # 1. 初始化官方 Gemini 客户端
-# 默认会自动读取环境变量中的 GEMINI_API_KEY
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+# 默认会自动读取您在系统环境变量中配置的 GEMINI_API_KEY
+client = genai.Client()
+
+# 💡 如果您决定临时把密钥写死在代码里（不推荐），可以取消注释下面这行并填入密钥：
+# client = genai.Client(api_key="AIzaSy您的完整API密钥")
 
 DOCS_DIR = r"D:\AquaRAG\docs"
 CODE_ROOTS = [
@@ -41,6 +43,15 @@ def scan_code_files():
 
 
 def ai_select_files(ticket_text, docs, files):
+    print("\n===== Jira Ticket =====")
+    print(ticket_text)
+
+    print("\n===== Docs (.md) =====")
+    print(json.dumps(docs, indent=2, ensure_ascii=False))
+
+    print("\n===== Code Files =====")
+    print(files)
+    
     prompt = f"""
 You are an expert software engineer.
 
@@ -57,27 +68,32 @@ Task:
 Based on the ticket and documentation, decide which code files are relevant
 and should be modified.
 
-Return ONLY a JSON list of file paths.
+Return ONLY a JSON list of file paths. Do not wrap it in markdown block syntax.
 """
 
-    # 2. 使用 interactions.create 调用 Gemini 3 Flash Preview
-    # 使用 response_mime_type 强制输出合法 JSON
+    # 2. 调用 Gemini 3 Flash Preview (去除了引发 TypeError 的 config 参数)
     resp = client.interactions.create(
         model='models/gemini-3-flash-preview',
-        input=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            top_p=0.95,
-            thinking_config=types.ThinkingConfig(thinking_budget=2048)  # 开启高思考链级别
-        )
+        input=prompt
     )
 
     # 3. 提取最终生成的文本内容
-    content = resp.steps[-1].text
+    content = resp.steps[-1].text.strip()
+    
+    # 鲁棒性处理：剥离模型可能自带的 ```json 或 ``` 标记
+    if content.startswith("```"):
+        lines = content.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines[-1].startswith("```"):
+            lines = lines[:-1]
+        content = "\n".join(lines).strip()
     
     try:
         selected = json.loads(content)
     except Exception:
+        # 如果解析失败，则保底返回所有扫描到的文件
+        print("⚠ 无法解析 AI 返回的 JSON 列表，使用保底全量文件列表。")
         selected = files
 
     return selected
@@ -108,19 +124,15 @@ Keep style consistent with existing code.
 Return ONLY the FULL updated code for this file. Do not include markdown code block syntax (like ```python).
 """
 
-    # 4. 调用模型修改文件
+    # 4. 调用模型修改文件 (去除了引发 TypeError 的 config 参数)
     resp = client.interactions.create(
         model='models/gemini-3-flash-preview',
-        input=prompt,
-        config=types.GenerateContentConfig(
-            top_p=0.95,
-            thinking_config=types.ThinkingConfig(thinking_budget=2048)
-        )
+        input=prompt
     )
 
     new_code = resp.steps[-1].text
 
-    # 去除可能包含的 markdown 代码块标记
+    # 鲁棒性处理：去除可能包含的 markdown 代码块标记，防止这些标记被写入源码文件
     if new_code.strip().startswith("```"):
         lines = new_code.strip().splitlines()
         if lines[0].startswith("```"):
