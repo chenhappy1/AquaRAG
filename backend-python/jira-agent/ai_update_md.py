@@ -2,7 +2,11 @@ import os
 import json
 from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"))  # 可换成 DeepSeek / 硅基流动
+# 使用 DeepSeek API（正确写法）
+client = OpenAI(
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com"
+)
 
 DOCS_DIR = "docs"
 
@@ -32,13 +36,11 @@ Project Documentation (.md files):
 
 Task:
 Determine which documentation files need to be updated based on the Jira ticket.
-Return ONLY a JSON list of file names, e.g.:
-
-["api.md", "README.md"]
+Return ONLY a JSON list of file names.
 """
 
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model="deepseek-chat",
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -47,7 +49,7 @@ Return ONLY a JSON list of file names, e.g.:
     try:
         selected = json.loads(content)
     except Exception:
-        selected = []  # 如果模型没按格式来，就不更新任何文档
+        selected = []
 
     return selected
 
@@ -69,7 +71,7 @@ Return ONLY the updated markdown content.
 """
 
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model="deepseek-chat",
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -79,14 +81,12 @@ Return ONLY the updated markdown content.
 def ai_update_md_from_ticket(ticket_text):
     docs = read_docs()
 
-    # 1. AI 判断哪些文档需要更新
     target_md_files = ai_select_md_files(ticket_text, docs)
 
     if not target_md_files:
         print("ℹ No documentation needs updating.")
         return
 
-    # 2. AI 更新每个文档
     for md_name in target_md_files:
         path = os.path.join(DOCS_DIR, md_name)
 
@@ -102,10 +102,3 @@ def ai_update_md_from_ticket(ticket_text):
 
         print(f"📘 Updated documentation: {md_name}")
 
-
-if __name__ == "__main__":
-    example_ticket = """
-    Add a new field 'age' to the User model and update API documentation.
-    Also update README to reflect new API response format.
-    """
-    ai_update_md_from_ticket(example_ticket)
