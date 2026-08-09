@@ -11,7 +11,7 @@ def agent(issue_key):
     ticket = get_jira_issue(issue_key)
 
     summary = ticket["fields"]["summary"]
-    description = ticket["fields"]["description"]
+    description = ticket["fields"]["description"] or ""
     ticket_text = summary + "\n" + description
 
     print("📌 Step 2: AI Update Code")
