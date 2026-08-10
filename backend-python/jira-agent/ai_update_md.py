@@ -1,12 +1,9 @@
 import os
 import json
-from openai import OpenAI
-
+from google import genai
+from google.genai import types
 # 使用 DeepSeek API（正确写法）
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)
+client = genai.Client()
 
 DOCS_DIR = "docs"
 
@@ -39,12 +36,18 @@ Determine which documentation files need to be updated based on the Jira ticket.
 Return ONLY a JSON list of file names.
 """
 
-    resp = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[{"role": "user", "content": prompt}],
+
+    resp = client.models.generate_content(
+        model='gemini-3-flash-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)  # 开启高思考链级别
+        )
     )
 
-    content = resp.choices[0].message.content
+    content = resp.text.strip() if resp.text else ""
 
     try:
         selected = json.loads(content)
@@ -70,13 +73,18 @@ Keep the writing style consistent.
 Return ONLY the updated markdown content.
 """
 
-    resp = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[{"role": "user", "content": prompt}],
+    resp = client.models.generate_content(
+        model='gemini-3-flash-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)  # 开启高思考链级别
+        )
     )
 
-    return resp.choices[0].message.content
-
+    content = resp.text.strip() if resp.text else ""
+    return content
 
 def ai_update_md_from_ticket(ticket_text):
     docs = read_docs()
