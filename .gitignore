@@ -44,3 +44,12 @@ backend/bin/
 *.log
 jenkins.log
 nohup.out
+
+# ====================================================================
+# Python Bytecode and Runtime Caches
+# ====================================================================
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.pycache/
