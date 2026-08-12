@@ -63,6 +63,6 @@ def agent(issue_key):
         print("📌 Jira 状态未做变更，请检查 AI 代码生成逻辑。")
 
 if __name__ == "__main__":
-    agent("SCRUM-6")
+    agent("SCRUM-7")
 
 
