@@ -1,20 +1,19 @@
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_openai import OpenAI
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from pathlib import Path
 from typing import Any
 from bs4 import BeautifulSoup
 from docx import Document
 from PyPDF2 import PdfReader
 from pinecone import Pinecone
+from google import genai
+from google.genai import types
 import boto3
 import shutil
 import os
 
 app = FastAPI()
 
-# 允许你的 Angular 前端跨域访问
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:4200"],
@@ -27,7 +26,7 @@ UPLOAD_DIR = "./uploaded_files"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------------------
-#  Pinecone 初始化
+#  Pinecone 初始化（托管 embedding）
 # ---------------------------
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
@@ -49,41 +48,44 @@ S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 #  上传文档 → S3 → 分块 → Pinecone
 # ---------------------------
 @app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...)):
-    # 上传到 S3
-    s3_key = f"uploads/{file.filename}"
+async def upload_document(request: Request, file: UploadFile = File(...)):
+    payload = await request.form()
+    user_id = payload.get("user_id")
+
+    if not user_id:
+        return {"status": "error", "message": "user_id is required"}
+
+    s3_key = f"uploads/{user_id}/{file.filename}"
     s3.upload_fileobj(file.file, S3_BUCKET, s3_key)
 
-    # 重新读取文件内容用于文本提取
     file.file.seek(0)
     temp_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 提取文本
     try:
         text = extract_text_from_file(temp_path)
     except ValueError as exc:
         return {"status": "error", "message": str(exc)}
 
-    # 分块
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
-    # 推送到 Pinecone（托管向量化）
     pinecone_records = []
     for idx, chunk in enumerate(chunks):
         pinecone_records.append({
-            "id": f"{file.filename}_chunk_{idx+1}",
+            "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
+            "values": None,  # 托管 embedding
             "metadata": {
                 "text": chunk,
                 "source": file.filename,
                 "s3_key": s3_key,
-                "chunk_index": idx + 1
+                "chunk_index": idx + 1,
+                "user_id": user_id
             }
         })
 
-    index.upsert(vectors=pinecone_records)
+    index.upsert(vectors=pinecone_records, namespace=user_id)
 
     return {
         "status": "success",
@@ -94,7 +96,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 # ---------------------------
-#  文档文本提取
+#  文本提取
 # ---------------------------
 def extract_text_from_file(file_path: str) -> str:
     suffix = Path(file_path).suffix.lower()
@@ -115,43 +117,26 @@ def extract_text_from_file(file_path: str) -> str:
             soup = BeautifulSoup(f, "html.parser")
             return soup.get_text(separator="\n")
 
-    raise ValueError(
-        f"Unsupported file type: {suffix}. Supported formats are TXT, PDF, DOCX, HTML."
-    )
+    raise ValueError(f"Unsupported file type: {suffix}")
 
 
 # ---------------------------
-#  构建 Prompt
-# ---------------------------
-def build_prompt(question: str, docs: list[Any]) -> str:
-    if docs:
-        context = "\n\n".join([doc["page_content"] for doc in docs])
-    else:
-        context = ""
-
-    return (
-        "You are a helpful assistant. Use the provided document excerpts to answer the question. "
-        "If the answer is not contained in the excerpts, say you do not know.\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question: {question}\n\n"
-        "Answer concisely and cite any source references if available."
-    )
-
-
-# ---------------------------
-#  Chat 接口 → Pinecone → DeepSeek
+#  Chat 接口 → Pinecone → Gemini 3 Flash Preview
 # ---------------------------
 @app.post("/api/chat")
 async def chat(request: Request):
     payload = await request.json()
     question = payload.get("question", "").strip()
+    user_id = payload.get("user_id")
+
     if not question:
         return {"error": "Question is required."}
+    if not user_id:
+        return {"error": "user_id is required."}
 
-    # Pinecone 托管向量化查询
     result = index.query(
-        vector=[],
-        inputs=[question],
+        namespace=user_id,
+        queries=[{"text": question}],
         top_k=3,
         include_metadata=True
     )
@@ -159,28 +144,37 @@ async def chat(request: Request):
     if not result.matches:
         return {"answer": "No matching content found.", "citations": []}
 
-    docs = []
-    for match in result.matches:
-        docs.append({
-            "page_content": match.metadata["text"],
-            "metadata": match.metadata
-        })
+    docs = [{"page_content": m.metadata["text"], "metadata": m.metadata} for m in result.matches]
 
-    prompt = build_prompt(question, docs)
+    context = "\n\n".join([d["page_content"] for d in docs])
+    prompt = (
+        "You are a helpful assistant. Use the provided document excerpts to answer the question.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question: {question}\n\n"
+        "Answer concisely."
+    )
 
-    # DeepSeek 回答
-    llm = OpenAI(model="DeepSeek-V3", temperature=0.2, max_tokens=512)
-    answer = llm.predict(prompt)
+    # ---------------------------
+    #  Gemini 3 Flash Preview 调用
+    # ---------------------------
+    client = genai.Client()
 
-    citations = []
-    for match in result.matches:
-        citations.append({
-            "source": match.metadata["source"],
-            "snippet": match.metadata["text"][:200],
-            "anchor": f"{match.metadata['source']}_chunk_{match.metadata['chunk_index']}"
-        })
+    resp = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            top_p=0.95,
+            thinking_config=types.ThinkingConfig(thinking_budget=2048)
+        )
+    )
 
-    return {
-        "answer": answer,
-        "citations": citations,
-    }
+    answer = resp.text
+
+    citations = [{
+        "source": m.metadata["source"],
+        "snippet": m.metadata["text"][:200],
+        "anchor": f"{m.metadata['source']}_chunk_{m.metadata['chunk_index']}"
+    } for m in result.matches]
+
+    return {"answer": answer, "citations": citations}
