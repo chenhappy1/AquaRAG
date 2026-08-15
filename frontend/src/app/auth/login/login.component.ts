@@ -22,8 +22,7 @@ export class LoginComponent {
     private readonly router: Router
   ) {
     this.form = this.formBuilder.group({
-      firstname: ['', [Validators.required]],
-      lastname: ['', [Validators.required]],
+      email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required]],
     });
   }
@@ -34,18 +33,18 @@ export class LoginComponent {
       return;
     }
 
-    const { firstname, lastname, password } = this.form.getRawValue();
-    if (!firstname || !lastname || !password) {
+    const { email, password } = this.form.getRawValue();
+    if (!email || !password) {
       return;
     }
 
     this.errorMessage.set(null);
     this.isSubmitting.set(true);
 
-    this.authService.login({ firstname, lastname, password }).subscribe({
+    this.authService.login({ email, password }).subscribe({
       next: () => this.router.navigate(['/chat']),
       error: () => {
-        this.errorMessage.set('Invalid name or password.');
+        this.errorMessage.set('Invalid email or password.');
         this.isSubmitting.set(false);
       },
     });
