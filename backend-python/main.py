@@ -208,3 +208,7 @@ async def chat(request: Request, authorization: str = Header(None)):
     } for m in result.matches]
 
     return {"answer": answer, "citations": citations}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
