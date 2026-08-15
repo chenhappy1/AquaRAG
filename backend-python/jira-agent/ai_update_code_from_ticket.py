@@ -79,7 +79,7 @@ Return ONLY a JSON list of relative file paths from the provided list. Do not wr
 
     # 🛠️ 【核心修改】：改用官方最标准的 generate_content 方法，彻底解决属性错误，并优雅地传参
     resp = client.models.generate_content(
-        model='Gemini 2.5 Flash Lite',
+        model='gemini-2.5-flash-lite',
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -147,7 +147,7 @@ Return ONLY the FULL updated code for this file. Do not include markdown code bl
 
     # 🛠️ 【核心修改】：同步改为最可靠的 generate_content 接口
     resp = client.models.generate_content(
-        model='Gemini 2.5 Flash Lite',
+        model='gemini-2.5-flash-lite',
         contents=prompt,
         config=types.GenerateContentConfig(
             top_p=0.95,
