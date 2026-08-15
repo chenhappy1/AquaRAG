@@ -112,7 +112,7 @@ export class RagComponent {
     const formData = new FormData();
     formData.append('file', file);
 
-    const uploadPromise = fetch('/api/upload', {
+    const uploadPromise = fetch('/api/rag/upload', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
@@ -179,7 +179,7 @@ export class RagComponent {
     const targetIndex = messages.length - 1;
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/rag/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
