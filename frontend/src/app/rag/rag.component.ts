@@ -2,7 +2,7 @@ import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { RagService } from './rag.service';
 
 interface HistoryItem {
   title: string;
@@ -50,7 +50,7 @@ export class RagComponent {
   constructor(
     public readonly authService: AuthService,
     private readonly router: Router,
-    private readonly http: HttpClient
+    private readonly ragService: RagService
   ) {}
 
   protected get selectedFile(): File | null {
@@ -112,16 +112,7 @@ export class RagComponent {
     this.chatInput.set('');
     this.chatStreaming.set(false);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const headers = new HttpHeaders({
-      Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
-    });
-
-    const uploadPromise = this.http
-      .post('/api/rag/upload', formData, { headers })
-      .toPromise();
+    const uploadPromise = this.ragService.uploadFile(file).toPromise();
 
     const intervalPromise = new Promise<void>((resolve) => {
       const interval = window.setInterval(() => {
@@ -184,15 +175,8 @@ export class RagComponent {
     this.chatMessages.set(messages);
     const targetIndex = messages.length - 1;
 
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
-    });
-
     try {
-      const response: any = await this.http
-        .post('/api/rag/chat', { question }, { headers })
-        .toPromise();
+      const response: any = await this.ragService.chat(question).toPromise();
 
       const answer = response?.answer || 'No answer returned.';
       const citations = response?.citations || [];
