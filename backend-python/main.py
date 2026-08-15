@@ -17,7 +17,7 @@ import jwt
 # ---------------------------
 #  JWT 配置（必须与 Java SECRET 一样）
 # ---------------------------
-JWT_SECRET = "super-secret-key-change-this"
+JWT_SECRET = "super-secret-key-change-this-32bytes"
 
 def decode_jwt(token: str):
     try:
