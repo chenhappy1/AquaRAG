@@ -62,7 +62,7 @@ S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 # ---------------------------
 #  上传文档 → S3 → 分块 → Pinecone
 # ---------------------------
-@app.post("/api/upload")
+@app.post("/api/rag/upload")
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
@@ -70,7 +70,7 @@ async def upload_document(
 ):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
-
+    print("upload file")
     token = authorization.replace("Bearer ", "")
     claims = decode_jwt(token)
     user_id = claims["sub"]  # Java JWT subject = user_id
@@ -151,7 +151,7 @@ def extract_text_from_file(file_path: str) -> str:
 # ---------------------------
 #  Chat 接口 → Pinecone → Gemini
 # ---------------------------
-@app.post("/api/chat")
+@app.post("/api/rag/chat")
 async def chat(request: Request, authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
