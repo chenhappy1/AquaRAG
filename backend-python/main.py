@@ -68,59 +68,76 @@ async def upload_document(
     file: UploadFile = File(...),
     authorization: str = Header(None)
 ):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    print("upload file")
-    token = authorization.replace("Bearer ", "")
-    claims = decode_jwt(token)
-    user_id = claims["sub"]  # Java JWT subject = user_id
+    print(">>> upload_document called")
+    print("authorization:", authorization)
 
-    # 上传到 S3
-    s3_key = f"uploads/{user_id}/{file.filename}"
-    s3.upload_fileobj(file.file, S3_BUCKET, s3_key)
-
-    # 保存临时文件
-    file.file.seek(0)
-    temp_path = os.path.join(UPLOAD_DIR, file.filename)
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    # 提取文本
     try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+        token = authorization.replace("Bearer ", "")
+        claims = decode_jwt(token)
+        user_id = claims["sub"]
+
+        # 上传到 S3
+        s3_key = f"uploads/{user_id}/{file.filename}"
+        print(">>> uploading to S3:", s3_key)
+        s3.upload_fileobj(file.file, S3_BUCKET, s3_key)
+
+        # 保存临时文件
+        file.file.seek(0)
+        temp_path = os.path.join(UPLOAD_DIR, file.filename)
+        print(">>> saving temp file:", temp_path)
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # 提取文本
+        print(">>> extracting text")
         text = extract_text_from_file(temp_path)
-    except ValueError as exc:
-        return {"status": "error", "message": str(exc)}
 
-    # 分块
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = text_splitter.split_text(text)
+        # 分块
+        print(">>> splitting text")
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        chunks = text_splitter.split_text(text)
 
-    # Pinecone 托管 embedding upsert
-    pinecone_records = []
-    for idx, chunk in enumerate(chunks):
-        pinecone_records.append({
-            "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
-            "values": None,
-            "metadata": {
-                "text": chunk,
-                "source": file.filename,
-                "s3_key": s3_key,
-                "chunk_index": idx + 1,
-                "user_id": user_id
-            }
-        })
+        # 生成 embedding
+        print(">>> generating embeddings")
+        client = genai.Client()
+        pinecone_records = []
 
-    index.upsert(
-        namespace=user_id,
-        vectors=pinecone_records
-    )
+        for idx, chunk in enumerate(chunks):
+            embedding = client.models.embed_content(
+                model="text-embedding-004",
+                content=chunk
+            ).embedding
 
-    return {
-        "status": "success",
-        "filename": file.filename,
-        "s3_key": s3_key,
-        "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone!"
-    }
+            pinecone_records.append({
+                "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
+                "values": embedding,
+                "metadata": {
+                    "text": chunk,
+                    "source": file.filename,
+                    "s3_key": s3_key,
+                    "chunk_index": idx + 1,
+                    "user_id": user_id
+                }
+            })
+
+        print(">>> upserting to Pinecone")
+        index.upsert(namespace=user_id, vectors=pinecone_records)
+
+        print(">>> upload success")
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "s3_key": s3_key,
+            "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone!"
+        }
+
+    except Exception as e:
+        print(">>> ERROR:", e)
+        raise e
+
 
 
 # ---------------------------
