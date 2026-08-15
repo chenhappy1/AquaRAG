@@ -38,7 +38,7 @@ Return ONLY a JSON list of file names.
 
 
     resp = client.models.generate_content(
-        model='gemini-3-flash-preview',
+        model='Gemini 2.5 Flash Lite',
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -74,7 +74,7 @@ Return ONLY the updated markdown content.
 """
 
     resp = client.models.generate_content(
-        model='gemini-3-flash-preview',
+        model='Gemini 2.5 Flash Lite',
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",

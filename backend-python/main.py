@@ -160,7 +160,7 @@ async def chat(request: Request):
     client = genai.Client()
 
     resp = client.models.generate_content(
-        model="gemini-3-flash-preview",
+        model="Gemini 2.5 Flash Lite",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
