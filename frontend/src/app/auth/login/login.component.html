@@ -10,13 +10,8 @@
 
     <form [formGroup]="form" (ngSubmit)="submit()">
       <label class="field">
-        <span>First name</span>
-        <input formControlName="firstname" type="text" placeholder="Enter your first name" />
-      </label>
-
-      <label class="field">
-        <span>Last name</span>
-        <input formControlName="lastname" type="text" placeholder="Enter your last name" />
+        <span>Email</span>
+        <input formControlName="email" type="email" placeholder="Enter your email" />
       </label>
 
       <label class="field">

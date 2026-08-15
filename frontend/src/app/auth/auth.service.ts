@@ -22,7 +22,7 @@ export class AuthService {
 
   constructor(private readonly http: HttpClient) {}
 
-  login(credentials: { firstname: string; lastname: string; password: string }): Observable<AuthResponse> {
+  login(credentials: { email: string; password: string }): Observable<AuthResponse> {
     return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
       tap((response) => this.persistSession(response))
     );
