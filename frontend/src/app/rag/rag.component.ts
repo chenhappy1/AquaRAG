@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 interface HistoryItem {
   title: string;
@@ -46,6 +47,12 @@ export class RagComponent {
   protected readonly chatMessages = signal<ChatMessage[]>([]);
   protected readonly chatStreaming = signal(false);
 
+  constructor(
+    public readonly authService: AuthService,
+    private readonly router: Router,
+    private readonly http: HttpClient
+  ) {}
+
   protected get selectedFile(): File | null {
     return this.uploadedFiles()[this.selectedFileIndex()] ?? null;
   }
@@ -75,11 +82,6 @@ export class RagComponent {
     ];
   }
 
-  constructor(
-    public readonly authService: AuthService,
-    private readonly router: Router
-  ) {}
-
   protected onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
@@ -99,6 +101,7 @@ export class RagComponent {
 
   protected async onFileUpload(file?: File | null): Promise<void> {
     if (!file) return;
+
     const files = [...this.uploadedFiles(), file];
     this.uploadedFiles.set(files);
     this.selectedFileIndex.set(files.length - 1);
@@ -112,13 +115,13 @@ export class RagComponent {
     const formData = new FormData();
     formData.append('file', file);
 
-    const uploadPromise = fetch('/api/rag/upload', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
-      },
-      body: formData,
+    const headers = new HttpHeaders({
+      Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
     });
+
+    const uploadPromise = this.http
+      .post('/api/rag/upload', formData, { headers })
+      .toPromise();
 
     const intervalPromise = new Promise<void>((resolve) => {
       const interval = window.setInterval(() => {
@@ -133,11 +136,12 @@ export class RagComponent {
     });
 
     try {
-      const response = await uploadPromise;
-      const result = await response.json();
-      if (!response.ok || result.status !== 'success') {
-        throw new Error(result.message || `Upload failed with status ${response.status}`);
+      const result: any = await uploadPromise;
+
+      if (!result || result.status !== 'success') {
+        throw new Error(result?.message || 'Upload failed');
       }
+
       this.chunkPreviews.set(result.chunk_previews || []);
       await intervalPromise;
       this.stage.set('active');
@@ -163,9 +167,11 @@ export class RagComponent {
   protected sendChat(): void {
     const message = this.chatInput().trim();
     if (!message || this.chatStreaming()) return;
+
     const userMessage: ChatMessage = { role: 'user', text: message };
     this.chatMessages.set([...this.chatMessages(), userMessage]);
     this.chatInput.set('');
+
     this.startChatStream(message);
   }
 
@@ -178,23 +184,19 @@ export class RagComponent {
     this.chatMessages.set(messages);
     const targetIndex = messages.length - 1;
 
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
+    });
+
     try {
-      const response = await fetch('/api/rag/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.authService.getToken() ?? ''}`,
-        },
-        body: JSON.stringify({ question }),
-      });
+      const response: any = await this.http
+        .post('/api/rag/chat', { question }, { headers })
+        .toPromise();
 
-      if (!response.ok) {
-        throw new Error(`Chat request failed with status ${response.status}`);
-      }
+      const answer = response?.answer || 'No answer returned.';
+      const citations = response?.citations || [];
 
-      const payload = await response.json();
-      const answer = payload.answer || 'No answer returned.';
-      const citations = payload.citations || [];
       this.updateAssistantMessage(targetIndex, answer.trim(), citations);
     } catch (error) {
       console.error(error);
