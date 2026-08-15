@@ -8,6 +8,7 @@ from PyPDF2 import PdfReader
 from pinecone import Pinecone
 from google import genai
 from google.genai import types
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 import boto3
 import shutil
 import os
@@ -29,7 +30,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 #  Pinecone 初始化（托管 embedding）
 # ---------------------------
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
+index_name = os.getenv("PINECONE_INDEX_NAME")
+index = pc.Index(index_name)
 
 # ---------------------------
 #  AWS S3 初始化
@@ -55,22 +57,27 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
     if not user_id:
         return {"status": "error", "message": "user_id is required"}
 
+    # 上传到 S3
     s3_key = f"uploads/{user_id}/{file.filename}"
     s3.upload_fileobj(file.file, S3_BUCKET, s3_key)
 
+    # 保存临时文件
     file.file.seek(0)
     temp_path = os.path.join(UPLOAD_DIR, file.filename)
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    # 提取文本
     try:
         text = extract_text_from_file(temp_path)
     except ValueError as exc:
         return {"status": "error", "message": str(exc)}
 
+    # 分块
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
+    # Pinecone 托管 embedding upsert
     pinecone_records = []
     for idx, chunk in enumerate(chunks):
         pinecone_records.append({
@@ -85,7 +92,10 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
             }
         })
 
-    index.upsert(vectors=pinecone_records, namespace=user_id)
+    index.upsert(
+        namespace=user_id,
+        vectors=pinecone_records
+    )
 
     return {
         "status": "success",
@@ -134,11 +144,12 @@ async def chat(request: Request):
     if not user_id:
         return {"error": "user_id is required."}
 
+    # Pinecone v9 查询（托管 embedding）
     result = index.query(
         namespace=user_id,
-        queries=[{"text": question}],
         top_k=3,
-        include_metadata=True
+        include_metadata=True,
+        query={"text": question}
     )
 
     if not result.matches:
@@ -154,9 +165,7 @@ async def chat(request: Request):
         "Answer concisely."
     )
 
-    # ---------------------------
-    #  Gemini 3 Flash Preview 调用
-    # ---------------------------
+    # Gemini 调用
     client = genai.Client()
 
     resp = client.models.generate_content(
