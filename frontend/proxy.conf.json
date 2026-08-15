@@ -1,6 +1,11 @@
 {
-  "/api": {
+  "/api/auth": {
     "target": "http://localhost:9000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/rag": {
+    "target": "http://localhost:8000",
     "secure": false,
     "changeOrigin": true
   }
