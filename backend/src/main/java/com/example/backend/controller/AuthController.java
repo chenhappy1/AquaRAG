@@ -7,7 +7,6 @@ import com.example.backend.dto.RegisterRequest;
 import com.example.backend.dto.RegisterResponse;
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -15,19 +14,29 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 public class AuthController {
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil; // 注入 JWT 工具类
+    private final JwtUtil jwtUtil;
+
+    // ⭐ 手写构造函数（解决你的编译错误）
+    public AuthController(UserRepository userRepository,
+                          BCryptPasswordEncoder passwordEncoder,
+                          JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+    }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        System.out.println("Login request received: " + request.email());
+        System.out.println("Login request received: " + request.password());
+
         return userRepository.findByEmail(request.email())
             .filter(user -> passwordEncoder.matches(request.password(), user.getPassword()))
             .map(user -> {
-                // 生成真正的 JWT
                 String token = jwtUtil.generateToken(user);
 
                 LoginResponse.UserFields userFields = new LoginResponse.UserFields(
