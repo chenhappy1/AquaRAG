@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from typing import Any
@@ -12,6 +12,19 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import boto3
 import shutil
 import os
+import jwt
+
+# ---------------------------
+#  JWT 配置（必须与 Java SECRET 一样）
+# ---------------------------
+JWT_SECRET = "super-secret-key-change-this"
+
+def decode_jwt(token: str):
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
 
 app = FastAPI()
 
@@ -50,12 +63,17 @@ S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 #  上传文档 → S3 → 分块 → Pinecone
 # ---------------------------
 @app.post("/api/upload")
-async def upload_document(request: Request, file: UploadFile = File(...)):
-    payload = await request.form()
-    user_id = payload.get("user_id")
+async def upload_document(
+    request: Request,
+    file: UploadFile = File(...),
+    authorization: str = Header(None)
+):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
 
-    if not user_id:
-        return {"status": "error", "message": "user_id is required"}
+    token = authorization.replace("Bearer ", "")
+    claims = decode_jwt(token)
+    user_id = claims["sub"]  # Java JWT subject = user_id
 
     # 上传到 S3
     s3_key = f"uploads/{user_id}/{file.filename}"
@@ -82,7 +100,7 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
     for idx, chunk in enumerate(chunks):
         pinecone_records.append({
             "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
-            "values": None,  # 托管 embedding
+            "values": None,
             "metadata": {
                 "text": chunk,
                 "source": file.filename,
@@ -131,20 +149,24 @@ def extract_text_from_file(file_path: str) -> str:
 
 
 # ---------------------------
-#  Chat 接口 → Pinecone → Gemini 3 Flash Preview
+#  Chat 接口 → Pinecone → Gemini
 # ---------------------------
 @app.post("/api/chat")
-async def chat(request: Request):
+async def chat(request: Request, authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    token = authorization.replace("Bearer ", "")
+    claims = decode_jwt(token)
+    user_id = claims["sub"]
+
     payload = await request.json()
     question = payload.get("question", "").strip()
-    user_id = payload.get("user_id")
 
     if not question:
         return {"error": "Question is required."}
-    if not user_id:
-        return {"error": "user_id is required."}
 
-    # Pinecone v9 查询（托管 embedding）
+    # Pinecone 查询
     result = index.query(
         namespace=user_id,
         top_k=3,
@@ -165,7 +187,6 @@ async def chat(request: Request):
         "Answer concisely."
     )
 
-    # Gemini 调用
     client = genai.Client()
 
     resp = client.models.generate_content(
