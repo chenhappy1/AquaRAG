@@ -112,7 +112,7 @@ async def upload_document(
         for idx, chunk in enumerate(chunks):
             embedding = client.models.embed_content(
                 model="text-embedding-004",
-                content=chunk
+                contents=chunk
             ).embedding
 
             pinecone_records.append({
