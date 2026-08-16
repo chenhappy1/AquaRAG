@@ -7,7 +7,6 @@ from PyPDF2 import PdfReader
 from pinecone import Pinecone
 from google import genai
 from google.genai import types
-from google.genai import EmbeddingsClient
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import boto3
 import os
@@ -57,7 +56,7 @@ S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 
 # ---------------------------
-#  上传文档 → S3 → 内存提取文本 → 分块 → Gemini embedding → Pinecone
+#  上传文档 → S3 → 内存提取文本 → 分块 → gemini-embedding-001 → Pinecone
 # ---------------------------
 @app.post("/api/rag/upload")
 async def upload_document(
@@ -92,17 +91,21 @@ async def upload_document(
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
-    # Gemini embedding（适配 google-genai 2.17.0）
+    # Gemini embedding（gemini-embedding-001）
     print(">>> generating embeddings")
-    embed_client = EmbeddingsClient()
+    client = genai.Client()
     pinecone_records = []
 
     for idx, chunk in enumerate(chunks):
-        resp = embed_client.embed(
-            model="models/embedding-001",
-            content=chunk
+        resp = client.models.embed_content(
+            model="gemini-embedding-001",
+            contents=chunk,
+            config=types.EmbedContentConfig(
+                task_type="RETRIEVAL_DOCUMENT",
+                output_dimensionality=512  # 可选：降维，Pinecone 维度需一致
+            )
         )
-        embedding = resp.embedding  # ⭐ 正确取法
+        embedding = resp.embeddings[0].values
 
         pinecone_records.append({
             "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
@@ -153,7 +156,7 @@ def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
 
 
 # ---------------------------
-#  Chat 接口 → Gemini embedding → Pinecone → Gemini 生成答案
+#  Chat 接口 → gemini-embedding-001 → Pinecone → Gemini 生成答案
 # ---------------------------
 @app.post("/api/rag/chat")
 async def chat(request: Request, authorization: str = Header(None)):
@@ -170,13 +173,18 @@ async def chat(request: Request, authorization: str = Header(None)):
     if not question:
         return {"error": "Question is required."}
 
-    # Gemini embedding（适配 google-genai 2.17.0）
-    embed_client = EmbeddingsClient()
-    resp = embed_client.embed(
-        model="models/embedding-001",
-        content=question
+    client = genai.Client()
+
+    # 问题向量（RETRIEVAL_QUERY）
+    resp = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=question,
+        config=types.EmbedContentConfig(
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=512  # 要和上传时一致
+        )
     )
-    query_embedding = resp.embedding
+    query_embedding = resp.embeddings[0].values
 
     # Pinecone 查询
     print(">>> querying Pinecone with vector")
@@ -199,8 +207,6 @@ async def chat(request: Request, authorization: str = Header(None)):
         f"Question: {question}\n\n"
         "Answer concisely."
     )
-
-    client = genai.Client()
 
     print(">>> calling Gemini")
     resp = client.models.generate_content(
