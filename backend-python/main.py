@@ -80,7 +80,7 @@ async def upload_document(
     # 上传到 S3
     s3_key = f"uploads/{user_id}/{file.filename}"
     print(">>> uploading to S3:", s3_key)
-    # s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
+    s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
 
     # 从内存提取文本
     print(">>> extracting text from memory")
