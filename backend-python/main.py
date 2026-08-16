@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 # ---------------------------
-#  Pinecone 初始化（托管 embedding）
+#  Pinecone 初始化（手动 embedding）
 # ---------------------------
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 index_name = os.getenv("PINECONE_INDEX_NAME")
@@ -56,7 +56,7 @@ S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 
 # ---------------------------
-#  上传文档 → S3 → 内存提取文本 → 分块 → Pinecone（托管 embedding）
+#  上传文档 → S3 → 内存提取文本 → 分块 → Gemini embedding → Pinecone
 # ---------------------------
 @app.post("/api/rag/upload")
 async def upload_document(
@@ -82,7 +82,7 @@ async def upload_document(
     print(">>> uploading to S3:", s3_key)
     s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
 
-    # 从内存提取文本（不保存本地）
+    # 从内存提取文本
     print(">>> extracting text from memory")
     text = extract_text_from_memory(file.filename, file_bytes)
 
@@ -91,14 +91,21 @@ async def upload_document(
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
-    # Pinecone 托管 embedding
-    print(">>> upserting to Pinecone (managed embedding)")
+    # Gemini embedding
+    print(">>> generating embeddings")
+    client = genai.Client()
     pinecone_records = []
 
     for idx, chunk in enumerate(chunks):
+        resp = client.embed(
+            model="text-embedding-004",
+            contents=chunk
+        )
+        embedding = resp.embeddings[0].values
+
         pinecone_records.append({
             "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
-            "values": None,   # ❗ Pinecone 自动 embedding
+            "values": embedding,   # ❗ 必须传 dense vector
             "metadata": {
                 "text": chunk,
                 "source": file.filename,
@@ -108,13 +115,14 @@ async def upload_document(
             }
         })
 
+    print(">>> upserting to Pinecone")
     index.upsert(namespace=user_id, vectors=pinecone_records)
 
     return {
         "status": "success",
         "filename": file.filename,
         "s3_key": s3_key,
-        "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone (managed embedding)!"
+        "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone!"
     }
 
 
@@ -144,7 +152,7 @@ def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
 
 
 # ---------------------------
-#  Chat 接口 → Pinecone（托管 embedding）→ Gemini
+#  Chat 接口 → Gemini embedding → Pinecone → Gemini 生成答案
 # ---------------------------
 @app.post("/api/rag/chat")
 async def chat(request: Request, authorization: str = Header(None)):
@@ -161,13 +169,21 @@ async def chat(request: Request, authorization: str = Header(None)):
     if not question:
         return {"error": "Question is required."}
 
-    # Pinecone 托管 embedding 查询
-    print(">>> querying Pinecone with managed embedding")
+    # Gemini embedding for query
+    client = genai.Client()
+    resp = client.embed(
+        model="text-embedding-004",
+        contents=question
+    )
+    query_embedding = resp.embeddings[0].values
+
+    # Pinecone 查询
+    print(">>> querying Pinecone with vector")
     result = index.query(
         namespace=user_id,
         top_k=3,
         include_metadata=True,
-        query=question
+        vector=query_embedding
     )
 
     if not result.matches:
@@ -182,8 +198,6 @@ async def chat(request: Request, authorization: str = Header(None)):
         f"Question: {question}\n\n"
         "Answer concisely."
     )
-
-    client = genai.Client()
 
     print(">>> calling Gemini")
     resp = client.models.generate_content(
