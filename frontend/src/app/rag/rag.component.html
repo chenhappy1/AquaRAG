@@ -190,6 +190,7 @@
           (input)="chatInput.set($any($event.target).value)"
           placeholder="Ask anything about {{ selectedFileName }}..."
           [readonly]="chatStreaming()"
+          (keydown)="handleKeyPress($event)"
         />
         <button
           type="button"

@@ -263,4 +263,12 @@ export class RagComponent {
       if (el) el.scrollTop = el.scrollHeight;
     }, 0);
   }
+
+  handleKeyPress(event: KeyboardEvent) {
+    if (event.key === 'Enter' && !this.chatStreaming()) {
+      event.preventDefault();
+      this.sendChat();
+    }
+  }
+
 }
