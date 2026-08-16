@@ -102,7 +102,7 @@ async def upload_document(
             contents=chunk,
             config=types.EmbedContentConfig(
                 task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=512  # 可选：降维，Pinecone 维度需一致
+                output_dimensionality=1024  # 可选：降维，Pinecone 维度需一致
             )
         )
         embedding = resp.embeddings[0].values
@@ -181,7 +181,7 @@ async def chat(request: Request, authorization: str = Header(None)):
         contents=question,
         config=types.EmbedContentConfig(
             task_type="RETRIEVAL_QUERY",
-            output_dimensionality=512  # 要和上传时一致
+            output_dimensionality=1024  # 要和上传时一致
         )
     )
     query_embedding = resp.embeddings[0].values
