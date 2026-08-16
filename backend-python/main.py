@@ -49,14 +49,14 @@ s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION")  # us-east-2
+    region_name=os.getenv("AWS_REGION")
 )
 
 S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 
 # ---------------------------
-#  上传文档 → S3 → 分块 → embedding → Pinecone
+#  上传文档 → 自动更新 S3 + Pinecone
 # ---------------------------
 @app.post("/api/rag/upload")
 async def upload_document(
@@ -73,14 +73,45 @@ async def upload_document(
     claims = decode_jwt(token)
     user_id = claims["sub"]
 
-    # 读取文件内容
+    filename = file.filename
+    s3_key = f"uploads/{user_id}/{filename}"
+
+    # ---------------------------
+    # ① 删除旧 Pinecone chunks
+    # ---------------------------
+    print(">>> checking old Pinecone chunks")
+
+    old_chunks = index.query(
+        namespace=user_id,
+        top_k=1000,
+        include_metadata=True,
+        filter={"source": {"$eq": filename}},
+        vector=[0] * 1024
+    )
+
+    if old_chunks.matches:
+        ids = [m.id for m in old_chunks.matches]
+        index.delete(namespace=user_id, ids=ids)
+        print(f">>> deleted {len(ids)} old chunks")
+
+    # ---------------------------
+    # ② 删除旧 S3 文件
+    # ---------------------------
+    print(">>> deleting old S3 file:", s3_key)
+
+    try:
+        s3.delete_object(Bucket=S3_BUCKET, Key=s3_key)
+        print(">>> old S3 file deleted")
+    except Exception as e:
+        print(">>> no old S3 file found:", e)
+
+    # ---------------------------
+    # ③ 上传新文件到 S3
+    # ---------------------------
     file_bytes = await file.read()
     file_stream = BytesIO(file_bytes)
 
-    # 上传到 S3（带错误捕获）
-    s3_key = f"uploads/{user_id}/{file.filename}"
-    print(">>> uploading to S3:", s3_key)
-
+    print(">>> uploading new file to S3:", s3_key)
     try:
         s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
         print(">>> S3 upload SUCCESS")
@@ -88,16 +119,22 @@ async def upload_document(
         print(">>> S3 upload FAILED:", e)
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
 
-    # 提取文本
-    print(">>> extracting text from memory")
-    text = extract_text_from_memory(file.filename, file_bytes)
+    # ---------------------------
+    # ④ 提取文本
+    # ---------------------------
+    print(">>> extracting text")
+    text = extract_text_from_memory(filename, file_bytes)
 
-    # 分块
+    # ---------------------------
+    # ⑤ 分块
+    # ---------------------------
     print(">>> splitting text")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = text_splitter.split_text(text)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    chunks = splitter.split_text(text)
 
-    # Gemini embedding
+    # ---------------------------
+    # ⑥ 重新 embedding
+    # ---------------------------
     print(">>> generating embeddings")
     client = genai.Client()
     pinecone_records = []
@@ -108,31 +145,44 @@ async def upload_document(
             contents=chunk,
             config=types.EmbedContentConfig(
                 task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=1024  # ⭐ 必须与 Pinecone index 维度一致
+                output_dimensionality=1024
             )
         )
         embedding = resp.embeddings[0].values
 
         pinecone_records.append({
-            "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
+            "id": f"{user_id}_{filename}_chunk_{idx+1}",
             "values": embedding,
             "metadata": {
                 "text": chunk,
-                "source": file.filename,
+                "source": filename,
                 "s3_key": s3_key,
                 "chunk_index": idx + 1,
                 "user_id": user_id
             }
         })
 
-    print(">>> upserting to Pinecone")
+    print(">>> upserting new chunks")
     index.upsert(namespace=user_id, vectors=pinecone_records)
 
+    # ---------------------------
+    # ⑦ 返回新的 chunk previews
+    # ---------------------------
+    chunk_previews = [
+        {
+            "ref": filename,
+            "snippet": chunk[:200],
+            "anchor": f"{filename}_chunk_{i+1}"
+        }
+        for i, chunk in enumerate(chunks)
+    ]
+
     return {
-        "status": "success",
-        "filename": file.filename,
+        "status": "updated",
+        "filename": filename,
         "s3_key": s3_key,
-        "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone!"
+        "message": f"Updated file and saved {len(chunks)} new chunks to Pinecone!",
+        "chunk_previews": chunk_previews
     }
 
 
@@ -187,7 +237,7 @@ async def chat(request: Request, authorization: str = Header(None)):
         contents=question,
         config=types.EmbedContentConfig(
             task_type="RETRIEVAL_QUERY",
-            output_dimensionality=1024  # ⭐ 必须一致
+            output_dimensionality=1024
         )
     )
     query_embedding = resp.embeddings[0].values
