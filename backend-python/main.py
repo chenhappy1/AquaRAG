@@ -13,6 +13,7 @@ import boto3
 import shutil
 import os
 import jwt
+from io import BytesIO
 
 # ---------------------------
 #  JWT 配置（必须与 Java SECRET 一样）
@@ -79,17 +80,20 @@ async def upload_document(
         claims = decode_jwt(token)
         user_id = claims["sub"]
 
+        # 读取文件内容到内存
+        file_bytes = await file.read()
+        file_stream = BytesIO(file_bytes)
+
         # 上传到 S3
         s3_key = f"uploads/{user_id}/{file.filename}"
         print(">>> uploading to S3:", s3_key)
-        s3.upload_fileobj(file.file, S3_BUCKET, s3_key)
+        s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
 
         # 保存临时文件
-        file.file.seek(0)
         temp_path = os.path.join(UPLOAD_DIR, file.filename)
         print(">>> saving temp file:", temp_path)
         with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_bytes)
 
         # 提取文本
         print(">>> extracting text")
