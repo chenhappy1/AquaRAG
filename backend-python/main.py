@@ -54,6 +54,43 @@ s3 = boto3.client(
 
 S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
+# ---------------------------
+#  列出用户所有文件（刷新恢复）
+# ---------------------------
+@app.get("/api/rag/files")
+async def list_user_files(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    token = authorization.replace("Bearer ", "")
+    claims = decode_jwt(token)
+    user_id = claims["sub"]
+
+    # 查询 Pinecone 中所有属于该用户的 chunks
+    result = index.query(
+        namespace=user_id,
+        top_k=1000,
+        include_metadata=True,
+        vector=[0] * 1024
+    )
+
+    files = {}
+    for m in result.matches:
+        src = m.metadata["source"]
+        if src not in files:
+            files[src] = {
+                "filename": src,
+                "chunks": []
+            }
+        files[src]["chunks"].append({
+            "ref": src,
+            "snippet": m.metadata["text"][:200],
+            "anchor": f"{src}_chunk_{m.metadata['chunk_index']}"
+        })
+
+    return list(files.values())
+
+
 
 # ---------------------------
 #  上传文档 → 自动更新 S3 + Pinecone

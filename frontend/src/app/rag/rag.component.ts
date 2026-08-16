@@ -81,6 +81,7 @@ export class RagComponent {
 
       // 设置为 active 状态
       this.stage.set('active');
+      console.log(files)
     } catch (err) {
       console.error("Failed to load files", err);
       this.stage.set('empty');
