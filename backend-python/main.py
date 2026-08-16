@@ -80,7 +80,7 @@ async def upload_document(
     # 上传到 S3
     s3_key = f"uploads/{user_id}/{file.filename}"
     print(">>> uploading to S3:", s3_key)
-    s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
+    # s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
 
     # 从内存提取文本
     print(">>> extracting text from memory")
@@ -91,17 +91,17 @@ async def upload_document(
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
-    # Gemini embedding（适配 google-genai 2.x，使用 models/embedding-001）
+    # Gemini embedding（适配 google-genai 2.17.0）
     print(">>> generating embeddings")
     client = genai.Client()
     pinecone_records = []
 
     for idx, chunk in enumerate(chunks):
-        resp = client.models.embed_content(
+        resp = client.embeddings.embed(
             model="models/embedding-001",
-            contents=chunk
+            content=chunk
         )
-        embedding = resp.embeddings[0].values
+        embedding = resp.embedding  # ⭐ 新版 SDK 的正确取法
 
         pinecone_records.append({
             "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
@@ -169,13 +169,13 @@ async def chat(request: Request, authorization: str = Header(None)):
     if not question:
         return {"error": "Question is required."}
 
-    # Gemini embedding（适配 google-genai 2.x，使用 models/embedding-001）
+    # Gemini embedding（适配 google-genai 2.17.0）
     client = genai.Client()
-    resp = client.models.embed_content(
+    resp = client.embeddings.embed(
         model="models/embedding-001",
-        contents=question
+        content=question
     )
-    query_embedding = resp.embeddings[0].values
+    query_embedding = resp.embedding
 
     # Pinecone 查询
     print(">>> querying Pinecone with vector")
