@@ -36,4 +36,11 @@ export class RagService {
       }
     );
   }
+
+  /** ⭐ 新增：列出用户文件（刷新恢复） */
+  listFiles(): Observable<any[]> {
+    return this.http.get<any[]>('/api/rag/files', {
+      headers: this.authHeaders(),
+    });
+  }
 }

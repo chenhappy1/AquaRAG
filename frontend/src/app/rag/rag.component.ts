@@ -51,7 +51,41 @@ export class RagComponent {
     public readonly authService: AuthService,
     private readonly router: Router,
     private readonly ragService: RagService
-  ) {}
+  ) {
+    this.loadUserFiles();   // ⭐ 刷新后自动恢复文件
+  }
+
+  /* ===========================
+     自动加载用户文件（刷新恢复）
+  ============================ */
+
+  protected async loadUserFiles() {
+    try {
+      const files = await this.ragService.listFiles().toPromise();
+
+      if (!files || files.length === 0) {
+        this.stage.set('empty');
+        return;
+      }
+
+      // 设置文件列表（只存名字）
+      this.uploadedFiles.set(
+        files.map(f => new File([], f.filename))
+      );
+
+      // 默认选第一个文件
+      this.selectedFileIndex.set(0);
+
+      // 加载 chunk previews
+      this.chunkPreviews.set(files[0].chunks);
+
+      // 设置为 active 状态
+      this.stage.set('active');
+    } catch (err) {
+      console.error("Failed to load files", err);
+      this.stage.set('empty');
+    }
+  }
 
   /* ===========================
      GETTERS
@@ -138,10 +172,6 @@ export class RagComponent {
     try {
       const result: any = await uploadPromise;
 
-      if (!result || result.status !== 'success') {
-        throw new Error(result?.message || 'Upload failed');
-      }
-
       this.chunkPreviews.set(result.chunk_previews || []);
       await intervalPromise;
       this.stage.set('active');
@@ -159,10 +189,38 @@ export class RagComponent {
   protected selectFile(index: number | string): void {
     const selectedIndex = typeof index === 'string' ? Number(index) : index;
     if (selectedIndex < 0 || selectedIndex >= this.uploadedFiles().length) return;
+
     this.selectedFileIndex.set(selectedIndex);
     this.activeCitation.set(null);
+
+    // ⭐ 切换文件时加载对应 chunks
+    this.loadChunksForFile(selectedIndex);
+
     this.stage.set('active');
   }
+protected async loadChunksForFile(index: number) {
+  const filename = this.uploadedFiles()[index].name;
+
+  try {
+    const files = await this.ragService.listFiles().toPromise();
+
+    if (!files || files.length === 0) {
+      console.warn("No files returned from backend");
+      return;
+    }
+
+    const file = files.find(f => f.filename === filename);
+
+    if (file && file.chunks) {
+      this.chunkPreviews.set(file.chunks);
+    } else {
+      console.warn("No chunks found for file:", filename);
+    }
+  } catch (err) {
+    console.error("Failed to load chunks", err);
+  }
+}
+
 
   /* ===========================
      CHAT
@@ -176,8 +234,7 @@ export class RagComponent {
     this.chatMessages.set([...this.chatMessages(), userMessage]);
     this.chatInput.set('');
 
-    this.scrollToBottom(); // ⭐ 用户消息后滚动
-
+    this.scrollToBottom();
     this.startChatStream(message);
   }
 
@@ -189,7 +246,7 @@ export class RagComponent {
     const messages = [...this.chatMessages(), assistantMessage];
     this.chatMessages.set(messages);
 
-    this.scrollToBottom(); // ⭐ Thinking… 时滚动
+    this.scrollToBottom();
 
     const targetIndex = messages.length - 1;
 
@@ -201,7 +258,7 @@ export class RagComponent {
 
       this.updateAssistantMessage(targetIndex, answer.trim(), citations);
 
-      this.scrollToBottom(); // ⭐ AI 回复后滚动
+      this.scrollToBottom();
     } catch (error) {
       console.error(error);
       this.chatMessages.set([
@@ -209,7 +266,7 @@ export class RagComponent {
         { role: 'assistant', text: 'Unable to complete the chat request. Please try again.' },
       ]);
 
-      this.scrollToBottom(); // ⭐ 错误消息也滚动
+      this.scrollToBottom();
     } finally {
       this.chatStreaming.set(false);
     }
@@ -223,7 +280,7 @@ export class RagComponent {
     );
     this.chatMessages.set(updated);
 
-    this.scrollToBottom(); // ⭐ 替换 Thinking… 后滚动
+    this.scrollToBottom();
   }
 
   /* ===========================
@@ -270,5 +327,4 @@ export class RagComponent {
       this.sendChat();
     }
   }
-
 }
