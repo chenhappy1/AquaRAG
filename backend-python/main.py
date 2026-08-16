@@ -7,6 +7,7 @@ from PyPDF2 import PdfReader
 from pinecone import Pinecone
 from google import genai
 from google.genai import types
+from google.genai import EmbeddingsClient
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import boto3
 import os
@@ -93,15 +94,15 @@ async def upload_document(
 
     # Gemini embedding（适配 google-genai 2.17.0）
     print(">>> generating embeddings")
-    client = genai.Client()
+    embed_client = EmbeddingsClient()
     pinecone_records = []
 
     for idx, chunk in enumerate(chunks):
-        resp = client.embeddings.embed(
+        resp = embed_client.embed(
             model="models/embedding-001",
             content=chunk
         )
-        embedding = resp.embedding  # ⭐ 新版 SDK 的正确取法
+        embedding = resp.embedding  # ⭐ 正确取法
 
         pinecone_records.append({
             "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
@@ -170,8 +171,8 @@ async def chat(request: Request, authorization: str = Header(None)):
         return {"error": "Question is required."}
 
     # Gemini embedding（适配 google-genai 2.17.0）
-    client = genai.Client()
-    resp = client.embeddings.embed(
+    embed_client = EmbeddingsClient()
+    resp = embed_client.embed(
         model="models/embedding-001",
         content=question
     )
@@ -198,6 +199,8 @@ async def chat(request: Request, authorization: str = Header(None)):
         f"Question: {question}\n\n"
         "Answer concisely."
     )
+
+    client = genai.Client()
 
     print(">>> calling Gemini")
     resp = client.models.generate_content(
