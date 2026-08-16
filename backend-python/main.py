@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from typing import Any
 from bs4 import BeautifulSoup
 from docx import Document
 from PyPDF2 import PdfReader
@@ -10,15 +9,14 @@ from google import genai
 from google.genai import types
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import boto3
-import shutil
 import os
 import jwt
 from io import BytesIO
 
 # ---------------------------
-#  JWT 配置（必须与 Java SECRET 一样）
+#  JWT 配置
 # ---------------------------
-JWT_SECRET = "super-secret-key-change-this-32bytes"
+JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-key-change-this-32bytes")
 
 def decode_jwt(token: str):
     try:
@@ -36,9 +34,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-UPLOAD_DIR = "./uploaded_files"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------------------
 #  Pinecone 初始化（托管 embedding）
@@ -61,7 +56,7 @@ S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 
 # ---------------------------
-#  上传文档 → S3 → 分块 → Pinecone
+#  上传文档 → S3 → 内存提取文本 → 分块 → Pinecone（托管 embedding）
 # ---------------------------
 @app.post("/api/rag/upload")
 async def upload_document(
@@ -70,107 +65,86 @@ async def upload_document(
     authorization: str = Header(None)
 ):
     print(">>> upload_document called")
-    print("authorization:", authorization)
 
-    try:
-        if not authorization:
-            raise HTTPException(status_code=401, detail="Missing Authorization header")
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
 
-        token = authorization.replace("Bearer ", "")
-        claims = decode_jwt(token)
-        user_id = claims["sub"]
+    token = authorization.replace("Bearer ", "")
+    claims = decode_jwt(token)
+    user_id = claims["sub"]
 
-        # 读取文件内容到内存
-        file_bytes = await file.read()
-        file_stream = BytesIO(file_bytes)
+    # 读取文件内容到内存
+    file_bytes = await file.read()
+    file_stream = BytesIO(file_bytes)
 
-        # 上传到 S3
-        s3_key = f"uploads/{user_id}/{file.filename}"
-        print(">>> uploading to S3:", s3_key)
-        s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
+    # 上传到 S3
+    s3_key = f"uploads/{user_id}/{file.filename}"
+    print(">>> uploading to S3:", s3_key)
+    s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
 
-        # 保存临时文件
-        temp_path = os.path.join(UPLOAD_DIR, file.filename)
-        print(">>> saving temp file:", temp_path)
-        with open(temp_path, "wb") as buffer:
-            buffer.write(file_bytes)
+    # 从内存提取文本（不保存本地）
+    print(">>> extracting text from memory")
+    text = extract_text_from_memory(file.filename, file_bytes)
 
-        # 提取文本
-        print(">>> extracting text")
-        text = extract_text_from_file(temp_path)
+    # 分块
+    print(">>> splitting text")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    chunks = text_splitter.split_text(text)
 
-        # 分块
-        print(">>> splitting text")
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        chunks = text_splitter.split_text(text)
+    # Pinecone 托管 embedding
+    print(">>> upserting to Pinecone (managed embedding)")
+    pinecone_records = []
 
-        # 生成 embedding
-        print(">>> generating embeddings")
-        client = genai.Client()
-        pinecone_records = []
+    for idx, chunk in enumerate(chunks):
+        pinecone_records.append({
+            "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
+            "values": None,   # ❗ Pinecone 自动 embedding
+            "metadata": {
+                "text": chunk,
+                "source": file.filename,
+                "s3_key": s3_key,
+                "chunk_index": idx + 1,
+                "user_id": user_id
+            }
+        })
 
-        for idx, chunk in enumerate(chunks):
-            embedding = client.models.embed_content(
-                model="text-embedding-004",
-                contents=chunk
-            ).embedding
+    index.upsert(namespace=user_id, vectors=pinecone_records)
 
-            pinecone_records.append({
-                "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
-                "values": embedding,
-                "metadata": {
-                    "text": chunk,
-                    "source": file.filename,
-                    "s3_key": s3_key,
-                    "chunk_index": idx + 1,
-                    "user_id": user_id
-                }
-            })
-
-        print(">>> upserting to Pinecone")
-        index.upsert(namespace=user_id, vectors=pinecone_records)
-
-        print(">>> upload success")
-        return {
-            "status": "success",
-            "filename": file.filename,
-            "s3_key": s3_key,
-            "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone!"
-        }
-
-    except Exception as e:
-        print(">>> ERROR:", e)
-        raise e
-
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "s3_key": s3_key,
+        "message": f"Uploaded to S3 and saved {len(chunks)} chunks to Pinecone (managed embedding)!"
+    }
 
 
 # ---------------------------
-#  文本提取
+#  内存文本提取（不保存本地）
 # ---------------------------
-def extract_text_from_file(file_path: str) -> str:
-    suffix = Path(file_path).suffix.lower()
+def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
+    suffix = Path(filename).suffix.lower()
+    stream = BytesIO(file_bytes)
+
     if suffix in {".txt", ".md", ".csv", ".json"}:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read()
+        return file_bytes.decode("utf-8", errors="ignore")
 
     if suffix == ".pdf":
-        reader = PdfReader(file_path)
+        reader = PdfReader(stream)
         return "\n\n".join([page.extract_text() or "" for page in reader.pages])
 
     if suffix == ".docx":
-        document = Document(file_path)
-        return "\n\n".join([paragraph.text for paragraph in document.paragraphs if paragraph.text])
+        document = Document(stream)
+        return "\n\n".join([p.text for p in document.paragraphs if p.text])
 
     if suffix in {".html", ".htm"}:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            soup = BeautifulSoup(f, "html.parser")
-            return soup.get_text(separator="\n")
+        soup = BeautifulSoup(file_bytes.decode("utf-8", errors="ignore"), "html.parser")
+        return soup.get_text(separator="\n")
 
     raise ValueError(f"Unsupported file type: {suffix}")
 
 
 # ---------------------------
-#  Chat 接口 → Pinecone → Gemini
+#  Chat 接口 → Pinecone（托管 embedding）→ Gemini
 # ---------------------------
 @app.post("/api/rag/chat")
 async def chat(request: Request, authorization: str = Header(None)):
@@ -187,12 +161,13 @@ async def chat(request: Request, authorization: str = Header(None)):
     if not question:
         return {"error": "Question is required."}
 
-    # Pinecone 查询
+    # Pinecone 托管 embedding 查询
+    print(">>> querying Pinecone with managed embedding")
     result = index.query(
         namespace=user_id,
         top_k=3,
         include_metadata=True,
-        query={"text": question}
+        query=question
     )
 
     if not result.matches:
@@ -210,6 +185,7 @@ async def chat(request: Request, authorization: str = Header(None)):
 
     client = genai.Client()
 
+    print(">>> calling Gemini")
     resp = client.models.generate_content(
         model="gemini-3.1-flash-lite",
         contents=prompt,
@@ -220,7 +196,7 @@ async def chat(request: Request, authorization: str = Header(None)):
         )
     )
 
-    answer = resp.text
+    answer = resp.candidates[0].content.parts[0].text
 
     citations = [{
         "source": m.metadata["source"],
@@ -229,6 +205,7 @@ async def chat(request: Request, authorization: str = Header(None)):
     } for m in result.matches]
 
     return {"answer": answer, "citations": citations}
+
 
 if __name__ == "__main__":
     import uvicorn
