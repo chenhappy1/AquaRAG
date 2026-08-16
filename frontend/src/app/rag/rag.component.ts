@@ -53,6 +53,10 @@ export class RagComponent {
     private readonly ragService: RagService
   ) {}
 
+  /* ===========================
+     GETTERS
+  ============================ */
+
   protected get selectedFile(): File | null {
     return this.uploadedFiles()[this.selectedFileIndex()] ?? null;
   }
@@ -82,6 +86,10 @@ export class RagComponent {
     ];
   }
 
+  /* ===========================
+     FILE UPLOAD
+  ============================ */
+
   protected onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
@@ -105,6 +113,7 @@ export class RagComponent {
     const files = [...this.uploadedFiles(), file];
     this.uploadedFiles.set(files);
     this.selectedFileIndex.set(files.length - 1);
+
     this.stage.set('processing');
     this.processingStep.set(0);
     this.activeCitation.set(null);
@@ -155,6 +164,10 @@ export class RagComponent {
     this.stage.set('active');
   }
 
+  /* ===========================
+     CHAT
+  ============================ */
+
   protected sendChat(): void {
     const message = this.chatInput().trim();
     if (!message || this.chatStreaming()) return;
@@ -162,6 +175,8 @@ export class RagComponent {
     const userMessage: ChatMessage = { role: 'user', text: message };
     this.chatMessages.set([...this.chatMessages(), userMessage]);
     this.chatInput.set('');
+
+    this.scrollToBottom(); // ⭐ 用户消息后滚动
 
     this.startChatStream(message);
   }
@@ -173,6 +188,9 @@ export class RagComponent {
     const assistantMessage: ChatMessage = { role: 'assistant', text: 'Thinking...' };
     const messages = [...this.chatMessages(), assistantMessage];
     this.chatMessages.set(messages);
+
+    this.scrollToBottom(); // ⭐ Thinking… 时滚动
+
     const targetIndex = messages.length - 1;
 
     try {
@@ -182,12 +200,16 @@ export class RagComponent {
       const citations = response?.citations || [];
 
       this.updateAssistantMessage(targetIndex, answer.trim(), citations);
+
+      this.scrollToBottom(); // ⭐ AI 回复后滚动
     } catch (error) {
       console.error(error);
       this.chatMessages.set([
         ...this.chatMessages().slice(0, targetIndex),
         { role: 'assistant', text: 'Unable to complete the chat request. Please try again.' },
       ]);
+
+      this.scrollToBottom(); // ⭐ 错误消息也滚动
     } finally {
       this.chatStreaming.set(false);
     }
@@ -200,7 +222,13 @@ export class RagComponent {
         : item
     );
     this.chatMessages.set(updated);
+
+    this.scrollToBottom(); // ⭐ 替换 Thinking… 后滚动
   }
+
+  /* ===========================
+     CITATION JUMP
+  ============================ */
 
   protected openCitation(reference: string): void {
     this.activeCitation.set(reference);
@@ -212,6 +240,10 @@ export class RagComponent {
     }, 80);
   }
 
+  /* ===========================
+     SIDEBAR
+  ============================ */
+
   protected logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
@@ -219,5 +251,16 @@ export class RagComponent {
 
   protected toggleSidebar(): void {
     this.sidebarCollapsed.update((value) => !value);
+  }
+
+  /* ===========================
+     AUTO SCROLL
+  ============================ */
+
+  scrollToBottom() {
+    setTimeout(() => {
+      const el = document.querySelector('.chat-messages');
+      if (el) el.scrollTop = el.scrollHeight;
+    }, 0);
   }
 }
