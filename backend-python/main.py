@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 # ---------------------------
-#  Pinecone 初始化（手动 embedding）
+#  Pinecone 初始化
 # ---------------------------
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 index_name = os.getenv("PINECONE_INDEX_NAME")
@@ -49,14 +49,14 @@ s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION")
+    region_name=os.getenv("AWS_REGION")  # us-east-2
 )
 
 S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 
 # ---------------------------
-#  上传文档 → S3 → 内存提取文本 → 分块 → gemini-embedding-001 → Pinecone
+#  上传文档 → S3 → 分块 → embedding → Pinecone
 # ---------------------------
 @app.post("/api/rag/upload")
 async def upload_document(
@@ -73,16 +73,22 @@ async def upload_document(
     claims = decode_jwt(token)
     user_id = claims["sub"]
 
-    # 读取文件内容到内存
+    # 读取文件内容
     file_bytes = await file.read()
     file_stream = BytesIO(file_bytes)
 
-    # 上传到 S3
+    # 上传到 S3（带错误捕获）
     s3_key = f"uploads/{user_id}/{file.filename}"
     print(">>> uploading to S3:", s3_key)
-    s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
 
-    # 从内存提取文本
+    try:
+        s3.upload_fileobj(file_stream, S3_BUCKET, s3_key)
+        print(">>> S3 upload SUCCESS")
+    except Exception as e:
+        print(">>> S3 upload FAILED:", e)
+        raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
+
+    # 提取文本
     print(">>> extracting text from memory")
     text = extract_text_from_memory(file.filename, file_bytes)
 
@@ -91,7 +97,7 @@ async def upload_document(
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
-    # Gemini embedding（gemini-embedding-001）
+    # Gemini embedding
     print(">>> generating embeddings")
     client = genai.Client()
     pinecone_records = []
@@ -102,7 +108,7 @@ async def upload_document(
             contents=chunk,
             config=types.EmbedContentConfig(
                 task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=1024  # 可选：降维，Pinecone 维度需一致
+                output_dimensionality=1024  # ⭐ 必须与 Pinecone index 维度一致
             )
         )
         embedding = resp.embeddings[0].values
@@ -131,7 +137,7 @@ async def upload_document(
 
 
 # ---------------------------
-#  内存文本提取（不保存本地）
+#  内存文本提取
 # ---------------------------
 def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
     suffix = Path(filename).suffix.lower()
@@ -156,7 +162,7 @@ def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
 
 
 # ---------------------------
-#  Chat 接口 → gemini-embedding-001 → Pinecone → Gemini 生成答案
+#  Chat → embedding → Pinecone → Gemini
 # ---------------------------
 @app.post("/api/rag/chat")
 async def chat(request: Request, authorization: str = Header(None)):
@@ -175,13 +181,13 @@ async def chat(request: Request, authorization: str = Header(None)):
 
     client = genai.Client()
 
-    # 问题向量（RETRIEVAL_QUERY）
+    # embedding 查询向量
     resp = client.models.embed_content(
         model="gemini-embedding-001",
         contents=question,
         config=types.EmbedContentConfig(
             task_type="RETRIEVAL_QUERY",
-            output_dimensionality=1024  # 要和上传时一致
+            output_dimensionality=1024  # ⭐ 必须一致
         )
     )
     query_embedding = resp.embeddings[0].values
