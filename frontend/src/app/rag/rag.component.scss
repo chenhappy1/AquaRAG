@@ -2,11 +2,20 @@
   display: block;
 }
 
+/* ============================= */
+/* FULL SCREEN LAYOUT FIX        */
+/* ============================= */
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px 1fr;
-  min-height: 100vh;
+  height: 100vh;            /* ⭐ 全屏高度 */
+  overflow: hidden;         /* ⭐ 防止外层滚动条 */
 }
+
+/* ============================= */
+/* SIDEBAR (独立滚动)            */
+/* ============================= */
 
 .sidebar {
   background: #0f172a;
@@ -16,6 +25,7 @@
   flex-direction: column;
   gap: 1.5rem;
   transition: width 0.3s ease;
+  overflow-y: auto;         /* ⭐ 左侧滚动条 */
 }
 
 .sidebar.collapsed {
@@ -137,23 +147,31 @@
   cursor: pointer;
 }
 
+/* ============================= */
+/* WORKSPACE (中间 + 右侧)       */
+/* ============================= */
+
 .workspace {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 1.5rem;
   padding: 1.5rem;
   background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
+  overflow: hidden;         /* ⭐ 防止双滚动条 */
 }
 
-.viewer,
-.chat {
+/* ============================= */
+/* VIEWER (独立滚动)             */
+/* ============================= */
+
+.viewer {
   background: white;
   border-radius: 30px;
   box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
+  overflow: hidden;         /* ⭐ 外层不滚动 */
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 3rem);
+  height: 100%;             /* ⭐ 让内部滚动生效 */
 }
 
 .panel-header {
@@ -183,115 +201,47 @@
   max-width: 38rem;
 }
 
-.file-switcher {
-  align-self: flex-start;
-  display: grid;
-  gap: 0.65rem;
+.viewer-body {
+  padding: 0 2rem 2rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;         /* ⭐ 中间滚动条 */
+  padding-right: 10px;
 }
 
-.file-switcher label {
-  color: #6b7280;
-  font-size: 0.85rem;
+/* ============================= */
+/* CHAT (独立滚动)               */
+/* ============================= */
+
+.chat {
+  background: white;
+  border-radius: 30px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
+  overflow: hidden;         /* ⭐ 外层不滚动 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-.file-switcher select {
-  border-radius: 16px;
-  border: 1px solid #d1d5db;
-  padding: 0.9rem 1rem;
-  min-width: 200px;
+.chat-header {
+  padding: 2rem 2rem 0;
 }
 
-.viewer-body,
 .chat-body {
   padding: 0 2rem 2rem;
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  overflow-y: auto;         /* ⭐ 右侧滚动条 */
+  padding-right: 10px;
 }
 
-.drop-zone {
-  flex: 1;
-  border: 2px dashed #cbd5e1;
-  border-radius: 28px;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
-  text-align: center;
-  background: #f8fafc;
-}
-
-.drop-title {
-  font-size: 1.4rem;
-  margin: 0;
-}
-
-.drop-copy {
-  color: #6b7280;
-  margin: 1rem 0 1.5rem;
-}
-
-.browse-button {
-  border: none;
-  background: #4f46e5;
-  color: white;
-  border-radius: 999px;
-  padding: 0.95rem 1.4rem;
-  cursor: pointer;
-}
-
-.processing-state {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.status-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.status-label {
-  font-weight: 700;
-}
-
-.progress-bar {
-  height: 10px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.progress-bar span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, #4f46e5, #06b6d4);
-  transition: width 0.2s ease;
-}
-
-.skeleton-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.skeleton-card,
-.skeleton-line {
-  background: linear-gradient(90deg, #e2e8f0 25%, #f8fafc 50%, #e2e8f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.2s infinite linear;
-  border-radius: 16px;
-}
-
-.skeleton-card {
-  height: 100px;
-}
-
-.skeleton-line {
-  height: 14px;
-}
-
-.skeleton-line.short {
-  width: 60%;
+.chat-messages {
+  overflow-y: auto;         /* ⭐ 聊天内容滚动 */
+  padding-right: 10px;
 }
 
 .chat-message {
@@ -358,6 +308,64 @@
 .send-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ============================= */
+/* SKELETON + ANIMATIONS         */
+/* ============================= */
+
+.processing-state {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.status-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.status-label {
+  font-weight: 700;
+}
+
+.progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #06b6d4);
+  transition: width 0.2s ease;
+}
+
+.skeleton-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.skeleton-card,
+.skeleton-line {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f8fafc 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+  border-radius: 16px;
+}
+
+.skeleton-card {
+  height: 100px;
+}
+
+.skeleton-line {
+  height: 14px;
+}
+
+.skeleton-line.short {
+  width: 60%;
 }
 
 @keyframes shimmer {
