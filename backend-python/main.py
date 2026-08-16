@@ -91,21 +91,21 @@ async def upload_document(
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = text_splitter.split_text(text)
 
-    # Gemini embedding
+    # Gemini embedding（适配 google-genai 2.x，使用 models/embedding-001）
     print(">>> generating embeddings")
     client = genai.Client()
     pinecone_records = []
 
     for idx, chunk in enumerate(chunks):
-        resp = client.embed(
-            model="text-embedding-004",
+        resp = client.models.embed_content(
+            model="models/embedding-001",
             contents=chunk
         )
         embedding = resp.embeddings[0].values
 
         pinecone_records.append({
             "id": f"{user_id}_{file.filename}_chunk_{idx+1}",
-            "values": embedding,   # ❗ 必须传 dense vector
+            "values": embedding,
             "metadata": {
                 "text": chunk,
                 "source": file.filename,
@@ -169,10 +169,10 @@ async def chat(request: Request, authorization: str = Header(None)):
     if not question:
         return {"error": "Question is required."}
 
-    # Gemini embedding for query
+    # Gemini embedding（适配 google-genai 2.x，使用 models/embedding-001）
     client = genai.Client()
-    resp = client.embed(
-        model="text-embedding-004",
+    resp = client.models.embed_content(
+        model="models/embedding-001",
         contents=question
     )
     query_embedding = resp.embeddings[0].values
