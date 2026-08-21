@@ -1,10 +1,10 @@
 package com.example.backend.controller;
 
 import com.example.backend.config.JwtUtil;
+import com.example.backend.dto.AuthResponse;
 import com.example.backend.dto.LoginRequest;
 import com.example.backend.dto.LoginResponse;
 import com.example.backend.dto.RegisterRequest;
-import com.example.backend.dto.RegisterResponse;
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -49,7 +49,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
         System.out.println("Register request received: " + request);
 
         if (userRepository.existsByFirstnameAndLastname(request.firstname(), request.lastname())) {
@@ -64,12 +64,17 @@ public class AuthController {
 
         User savedUser = userRepository.save(user);
 
-        RegisterResponse response = new RegisterResponse(
-                savedUser.getId(),
-                savedUser.getFirstname(),
-                savedUser.getLastname(),
-                savedUser.getEmail()
+        String token = jwtUtil.generateToken(user);
+
+        AuthResponse.UserFields userFields = new AuthResponse.UserFields(
+            savedUser.getId(),
+            savedUser.getFirstname(),
+            savedUser.getLastname(),
+            savedUser.getEmail()
         );
+
+        // ⭐ 返回 token + user
+        AuthResponse response = new AuthResponse(token, userFields);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
