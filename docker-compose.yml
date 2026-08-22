@@ -5,7 +5,7 @@ services:
   # 1. Python RAG Backend
   # -------------------------
   backend-python:
-    image: yourdockerhub/aquarag-backend-python:latest
+    image: goldflow/aquarag-backend-python:latest
     container_name: backend-python
     ports:
       - "8000:8000"
@@ -24,7 +24,7 @@ services:
   # 2. Java Spring Boot Backend
   # -------------------------
   backend-java:
-    image: yourdockerhub/aquarag-backend-java:latest
+    image: goldflow/aquarag-backend-java:latest
     container_name: backend-java
     ports:
       - "9000:9000"
@@ -35,7 +35,7 @@ services:
   # 3. Angular Frontend (Nginx)
   # -------------------------
   frontend:
-    image: yourdockerhub/aquarag-frontend:latest
+    image: goldflow/aquarag-frontend:latest
     container_name: frontend
     ports:
       - "80:80"
