@@ -3,23 +3,23 @@ FROM node:22 AS build
 WORKDIR /app
 COPY . .
 
-# Set memory limit flag to prevent Node.js from running out of RAM during compilation
+# Prevent Node.js from running out of memory during Angular build
 ENV NODE_OPTIONS="--max-old-space-size=512"
 
-# Install packages smoothly with dependency resolution bypass flags
-# 🌟 FIX 1: Added --legacy-peer-deps to ignore version trees friction between frameworks
+# Install dependencies with peer-deps bypass
 RUN npm install --no-audit --no-fund --legacy-peer-deps
 
-# Execute production build and prevent style size warnings from breaking the build
-# 🌟 FIX 2: Added || true to ensure the build finishes gracefully even if SCSS exceeds 4KB budget
+# Build Angular production bundle
 RUN npx ng build --configuration production || true
 
-# Stage 2: Serve the compiled application static assets via Nginx
+# Stage 2: Serve the compiled Angular app using Nginx
 FROM nginx:alpine
 
-# Copy the generated production build files into the default Nginx public server directory
-# 🌟 FIX 3: Corrected pathway destination to match the actual output location /app/dist/frontend
-COPY --from=build /app/dist/frontend /usr/share/nginx/html
+# Copy ONLY the browser build output (correct Angular output path)
+COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
+
+# Fix Angular SPA routing (important!)
+RUN sed -i 's|try_files .*|try_files $uri $uri/ /index.html;|g' /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
