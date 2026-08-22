@@ -1,4 +1,4 @@
-# Stage 1: Build and package stage using Maven and Java 21
+# Stage 1: Build and package stage using Maven and Java 25
 FROM maven:3-eclipse-temurin-25 AS build
 WORKDIR /app
 COPY . .
