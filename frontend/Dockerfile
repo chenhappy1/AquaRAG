@@ -1,25 +1,33 @@
-# Stage 1: Build and compile the Angular application
+# ============================
+# Stage 1: Build Angular App
+# ============================
 FROM node:22 AS build
 WORKDIR /app
-COPY . .
 
-# Prevent Node.js from running out of memory during Angular build
+# Copy package files first (better caching)
+COPY package*.json ./
+
+# Install dependencies
 ENV NODE_OPTIONS="--max-old-space-size=512"
-
-# Install dependencies with peer-deps bypass
 RUN npm install --no-audit --no-fund --legacy-peer-deps
 
-# Build Angular production bundle
-RUN npx ng build --configuration production || true
+# Copy the rest of the Angular project
+COPY . .
 
-# Stage 2: Serve the compiled Angular app using Nginx
+# Build Angular production bundle (no || true)
+RUN npx ng build --configuration production
+
+# ============================
+# Stage 2: Serve with Nginx
+# ============================
 FROM nginx:alpine
 
-# Copy ONLY the browser build output (correct Angular output path)
-COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
+# Copy Angular build output (auto-detect project name)
+# This will copy ANY folder inside dist/ to Nginx
+COPY --from=build /app/dist/* /usr/share/nginx/html
 
-# Fix Angular SPA routing (important!)
+# Fix Angular SPA routing
 RUN sed -i 's|try_files .*|try_files $uri $uri/ /index.html;|g' /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nginx", "-g", "daemon
