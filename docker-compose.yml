@@ -1,24 +1,41 @@
 version: '3.8'
 
 services:
-  # 1. Your brand-new Python RAG backend
+  # -------------------------
+  # 1. Python RAG Backend
+  # -------------------------
   backend-python:
-    build: ./backend-python    # Points to your new folder
+    build: ./backend-python
+    container_name: backend-python
     ports:
-      - "8000:8000"            # FastAPI defaults to port 8000
+      - "8000:8000"
     environment:
-      - OPENAI_API_KEY=your_actual_openai_api_key_here  # Enter your API Key here
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      JWT_SECRET: ${JWT_SECRET}
     volumes:
-      - ./backend-python/chroma_db:/app/chroma_db # Keeps your Vector DB data safe when container restarts
+      - ./backend-python/chroma_db:/app/chroma_db
 
-  # 2. Your original Java backend (Kept safely here, won't conflict)
+  # -------------------------
+  # 2. Java Spring Boot Backend
+  # -------------------------
   backend-java:
     build: ./backend
+    container_name: backend-java
     ports:
-      - "9000:9000"            # Your original Java port
+      - "9000:9000"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
-  # 3. Your Angular frontend
+  # -------------------------
+  # 3. Angular Frontend (Nginx)
+  # -------------------------
   frontend:
     build: ./frontend
+    container_name: frontend
     ports:
-      - "4200:4200"
+      - "80:80"
