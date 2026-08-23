@@ -173,7 +173,8 @@ async def upload_document(
     # ⑥ 重新 embedding
     # ---------------------------
     print(">>> generating embeddings")
-    client = genai.Client()
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+
     pinecone_records = []
 
     for idx, chunk in enumerate(chunks):
