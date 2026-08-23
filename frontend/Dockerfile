@@ -16,11 +16,11 @@ RUN npx ng build --configuration production
 # ============================
 FROM nginx:alpine
 
-# Copy Angular build output (your folder name is "frontend")
+# Copy Angular build output
 COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
 
-# Fix Angular SPA routing
-RUN sed -i 's|try_files .*|try_files $uri $uri/ /index.html;|g' /etc/nginx/conf.d/default.conf
+# Copy custom Nginx config (THIS IS THE KEY)
+COPY default.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
