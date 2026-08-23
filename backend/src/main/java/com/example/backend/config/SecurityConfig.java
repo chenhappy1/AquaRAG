@@ -26,22 +26,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(Customizer.withDefaults())   
+            .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
-            // 1. 🛠️ 彻底禁用 httpBasic 和 formLogin，防止它们强制拦截你的请求并弹出登录框
+
+            // 禁用所有默认认证方式
             .httpBasic(httpBasic -> httpBasic.disable())
             .formLogin(formLogin -> formLogin.disable())
-            
+            .logout(logout -> logout.disable())
+
+            // ⭐ 必须允许匿名用户，否则注册接口会 403
+            .anonymous(Customizer.withDefaults())
+
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()   
-                
-                // 2. 🛠️ 同时放行带 /api 和不带 /api 的路径
-                // 因为你的 Nginx 带有 `proxy_pass http://backend-java:9000/;`（末尾有斜杠）
-                // 转发到后端时，/api 前缀会被 Nginx 抹除，变成 /auth/register
-                .requestMatchers("/api/auth/**", "/auth/**").permitAll()              
-                
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/api/auth/**", "/auth/**").permitAll()
                 .anyRequest().authenticated()
             );
 
