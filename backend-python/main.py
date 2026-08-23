@@ -303,15 +303,25 @@ async def chat(request: Request, authorization: str = Header(None)):
     )
 
     print(">>> calling Gemini")
+    # resp = client.models.generate_content(
+    #     model="gemini-3.1-flash-lite",
+    #     contents=prompt,
+    #     config=types.GenerateContentConfig(
+    #         response_mime_type="application/json",
+    #         top_p=0.95,
+    #         thinking_config=types.ThinkingConfig(thinking_budget=2048)
+    #     )
+    # )
+
     resp = client.models.generate_content(
         model="gemini-3.1-flash-lite",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            top_p=0.95,
-            thinking_config=types.ThinkingConfig(thinking_budget=2048)
+            top_p=0.95
         )
     )
+
 
     answer = resp.candidates[0].content.parts[0].text
 
