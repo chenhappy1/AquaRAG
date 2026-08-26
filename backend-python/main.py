@@ -12,6 +12,17 @@ import boto3
 import os
 import jwt
 from io import BytesIO
+import pika
+import json
+
+
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host=RABBITMQ_HOST)
+)
+channel = connection.channel()
+channel.queue_declare(queue="rag_upload_jobs", durable=True)
 
 # ---------------------------
 #  JWT 配置
@@ -113,38 +124,6 @@ async def upload_document(
     filename = file.filename
     s3_key = f"uploads/{user_id}/{filename}"
 
-    # ---------------------------
-    # ① 删除旧 Pinecone chunks
-    # ---------------------------
-    print(">>> checking old Pinecone chunks")
-
-    old_chunks = index.query(
-        namespace=user_id,
-        top_k=1000,
-        include_metadata=True,
-        filter={"source": {"$eq": filename}},
-        vector=[0] * 1024
-    )
-
-    if old_chunks.matches:
-        ids = [m.id for m in old_chunks.matches]
-        index.delete(namespace=user_id, ids=ids)
-        print(f">>> deleted {len(ids)} old chunks")
-
-    # ---------------------------
-    # ② 删除旧 S3 文件
-    # ---------------------------
-    print(">>> deleting old S3 file:", s3_key)
-
-    try:
-        s3.delete_object(Bucket=S3_BUCKET, Key=s3_key)
-        print(">>> old S3 file deleted")
-    except Exception as e:
-        print(">>> no old S3 file found:", e)
-
-    # ---------------------------
-    # ③ 上传新文件到 S3
-    # ---------------------------
     file_bytes = await file.read()
     file_stream = BytesIO(file_bytes)
 
@@ -156,72 +135,31 @@ async def upload_document(
         print(">>> S3 upload FAILED:", e)
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
 
-    # ---------------------------
-    # ④ 提取文本
-    # ---------------------------
-    print(">>> extracting text")
-    text = extract_text_from_memory(filename, file_bytes)
+    # ④ 不再在这里做文本提取 + embedding + Pinecone
+    #    改成发一个 RabbitMQ 任务消息
 
-    # ---------------------------
-    # ⑤ 分块
-    # ---------------------------
-    print(">>> splitting text")
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = splitter.split_text(text)
+    job = {
+        "user_id": user_id,
+        "filename": filename,
+        "s3_key": s3_key
+    }
 
-    # ---------------------------
-    # ⑥ 重新 embedding
-    # ---------------------------
-    print(">>> generating embeddings")
-    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
-
-    pinecone_records = []
-
-    for idx, chunk in enumerate(chunks):
-        resp = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=chunk,
-            config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_DOCUMENT",
-                output_dimensionality=1024
-            )
+    channel.basic_publish(
+        exchange="",
+        routing_key="rag_upload_jobs",
+        body=json.dumps(job),
+        properties=pika.BasicProperties(
+            delivery_mode=2  # 消息持久化
         )
-        embedding = resp.embeddings[0].values
-
-        pinecone_records.append({
-            "id": f"{user_id}_{filename}_chunk_{idx+1}",
-            "values": embedding,
-            "metadata": {
-                "text": chunk,
-                "source": filename,
-                "s3_key": s3_key,
-                "chunk_index": idx + 1,
-                "user_id": user_id
-            }
-        })
-
-    print(">>> upserting new chunks")
-    index.upsert(namespace=user_id, vectors=pinecone_records)
-
-    # ---------------------------
-    # ⑦ 返回新的 chunk previews
-    # ---------------------------
-    chunk_previews = [
-        {
-            "ref": filename,
-            "snippet": chunk[:200],
-            "anchor": f"{filename}_chunk_{i+1}"
-        }
-        for i, chunk in enumerate(chunks)
-    ]
+    )
 
     return {
-        "status": "updated",
+        "status": "queued",
         "filename": filename,
         "s3_key": s3_key,
-        "message": f"Updated file and saved {len(chunks)} new chunks to Pinecone!",
-        "chunk_previews": chunk_previews
+        "message": "File uploaded to S3 and processing job queued in RabbitMQ."
     }
+
 
 
 # ---------------------------
