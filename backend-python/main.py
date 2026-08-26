@@ -14,6 +14,8 @@ import jwt
 from io import BytesIO
 import pika
 import json
+from fastapi.responses import StreamingResponse
+import asyncio
 
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
@@ -271,6 +273,35 @@ async def chat(request: Request, authorization: str = Header(None)):
 
     return {"answer": answer, "citations": citations}
 
+sse_connections = {}
+
+@app.get("/api/rag/sse")
+async def sse(request: Request, userId: str):
+    async def event_stream():
+        queue = asyncio.Queue()
+        sse_connections[userId] = queue
+
+        try:
+            while True:
+                msg = await queue.get()
+                yield f"data: {msg}\n\n"
+        except asyncio.CancelledError:
+            del sse_connections[userId]
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+@app.post("/api/rag/notify")
+async def notify(data: dict):
+    user_id = data["user_id"]
+    filename = data["filename"]
+
+    if user_id in sse_connections:
+        await sse_connections[user_id].put(json.dumps({
+            "status": "done",
+            "filename": filename
+        }))
+
+    return {"ok": True}
 
 if __name__ == "__main__":
     import uvicorn
