@@ -107,13 +107,14 @@ def process_job(ch, method, properties, body):
 
     # 告诉 RabbitMQ：这个消息处理完了
     ch.basic_ack(delivery_tag=method.delivery_tag)
-requests.post(
-    "http://localhost:8000/api/rag/notify",
-    json={
-        "user_id": user_id,
-        "filename": filename
-    }
-)
+    
+    requests.post(
+        "http://localhost:8000/api/rag/notify",
+        json={
+            "user_id": user_id,
+            "filename": filename
+        }
+    )
 
 channel.basic_qos(prefetch_count=1)
 channel.basic_consume(queue="rag_upload_jobs", on_message_callback=process_job)
