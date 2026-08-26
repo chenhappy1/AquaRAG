@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend-python:
     image: goldflow/aquarag-backend-python:latest
@@ -24,7 +22,7 @@ services:
     ports:
       - "9000:9000"
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      - SPRING_PROFILES_ACTIVE=prod
     networks:
       - aquarag-net
 
