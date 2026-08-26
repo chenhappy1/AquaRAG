@@ -52,7 +52,7 @@ export class RagComponent implements OnInit {
     private readonly router: Router,
     private readonly ragService: RagService
   ) {
-    this.loadUserFiles();   // ⭐ 刷新后自动恢复文件
+    this.loadUserFiles();   // 刷新后自动恢复文件
   }
 
   /* ===========================
@@ -60,14 +60,17 @@ export class RagComponent implements OnInit {
   ============================ */
 
   ngOnInit() {
-  this.ragService.getEvents().subscribe(event => {
-    console.log("组件收到 SSE：", event);
+    this.ragService.getEvents().subscribe(event => {
+      console.log('组件收到 SSE：', event);
 
-    if (event.status === 'done') {
-      alert("文件处理完成！");
-    }
-  });
-}
+      if (event.status === 'done') {
+        // 后端处理完成 → 切换为 active 并重新加载文件/chunks
+        this.stage.set('active');
+        this.loadUserFiles();
+        alert('文件处理完成！');
+      }
+    });
+  }
 
   protected async loadUserFiles() {
     try {
@@ -78,22 +81,16 @@ export class RagComponent implements OnInit {
         return;
       }
 
-      // 设置文件列表（只存名字）
       this.uploadedFiles.set(
         files.map(f => new File([], f.filename))
       );
 
-      // 默认选第一个文件
       this.selectedFileIndex.set(0);
-
-      // 加载 chunk previews
       this.chunkPreviews.set(files[0].chunks);
-
-      // 设置为 active 状态
       this.stage.set('active');
-      console.log(files)
+      console.log(files);
     } catch (err) {
-      console.error("Failed to load files", err);
+      console.error('Failed to load files', err);
       this.stage.set('empty');
     }
   }
@@ -181,11 +178,9 @@ export class RagComponent implements OnInit {
     });
 
     try {
-      const result: any = await uploadPromise;
-
-      this.chunkPreviews.set(result.chunk_previews || []);
+      await uploadPromise;          // 这里只负责上传 + 排队，不再假装处理完成
       await intervalPromise;
-      this.stage.set('active');
+      // 不在这里切换为 active，等 SSE 通知再切换
     } catch (error) {
       console.error('Upload failed', error);
       this.stage.set('empty');
@@ -203,35 +198,32 @@ export class RagComponent implements OnInit {
 
     this.selectedFileIndex.set(selectedIndex);
     this.activeCitation.set(null);
-
-    // ⭐ 切换文件时加载对应 chunks
     this.loadChunksForFile(selectedIndex);
-
     this.stage.set('active');
   }
-protected async loadChunksForFile(index: number) {
-  const filename = this.uploadedFiles()[index].name;
 
-  try {
-    const files = await this.ragService.listFiles().toPromise();
+  protected async loadChunksForFile(index: number) {
+    const filename = this.uploadedFiles()[index].name;
 
-    if (!files || files.length === 0) {
-      console.warn("No files returned from backend");
-      return;
+    try {
+      const files = await this.ragService.listFiles().toPromise();
+
+      if (!files || files.length === 0) {
+        console.warn('No files returned from backend');
+        return;
+      }
+
+      const file = files.find(f => f.filename === filename);
+
+      if (file && file.chunks) {
+        this.chunkPreviews.set(file.chunks);
+      } else {
+        console.warn('No chunks found for file:', filename);
+      }
+    } catch (err) {
+      console.error('Failed to load chunks', err);
     }
-
-    const file = files.find(f => f.filename === filename);
-
-    if (file && file.chunks) {
-      this.chunkPreviews.set(file.chunks);
-    } else {
-      console.warn("No chunks found for file:", filename);
-    }
-  } catch (err) {
-    console.error("Failed to load chunks", err);
   }
-}
-
 
   /* ===========================
      CHAT
@@ -268,7 +260,6 @@ protected async loadChunksForFile(index: number) {
       const citations = response?.citations || [];
 
       this.updateAssistantMessage(targetIndex, answer.trim(), citations);
-
       this.scrollToBottom();
     } catch (error) {
       console.error(error);
@@ -276,7 +267,6 @@ protected async loadChunksForFile(index: number) {
         ...this.chatMessages().slice(0, targetIndex),
         { role: 'assistant', text: 'Unable to complete the chat request. Please try again.' },
       ]);
-
       this.scrollToBottom();
     } finally {
       this.chatStreaming.set(false);
@@ -290,7 +280,6 @@ protected async loadChunksForFile(index: number) {
         : item
     );
     this.chatMessages.set(updated);
-
     this.scrollToBottom();
   }
 
