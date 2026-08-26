@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
@@ -35,7 +35,7 @@ interface ChunkPreview {
   templateUrl: './rag.component.html',
   styleUrls: ['./rag.component.scss'],
 })
-export class RagComponent {
+export class RagComponent implements OnInit {
   protected readonly stage = signal<'empty' | 'processing' | 'active'>('empty');
   protected readonly uploadedFiles = signal<File[]>([]);
   protected readonly selectedFileIndex = signal(0);
@@ -58,6 +58,16 @@ export class RagComponent {
   /* ===========================
      自动加载用户文件（刷新恢复）
   ============================ */
+
+  ngOnInit() {
+  this.ragService.getEvents().subscribe(event => {
+    console.log("组件收到 SSE：", event);
+
+    if (event.status === 'done') {
+      alert("文件处理完成！");
+    }
+  });
+}
 
   protected async loadUserFiles() {
     try {
