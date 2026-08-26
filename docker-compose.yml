@@ -1,10 +1,24 @@
 services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"     # RabbitMQ main port
+      - "15672:15672"   # RabbitMQ web UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    networks:
+      - aquarag-net
+
   backend-python:
     image: goldflow/aquarag-backend-python:latest
     container_name: backend-python
     ports:
       - "8000:8000"
     environment:
+      - RABBITMQ_HOST=rabbitmq
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
@@ -13,6 +27,25 @@ services:
       - AWS_REGION=${AWS_REGION}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
       - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - rabbitmq
+    networks:
+      - aquarag-net
+
+  worker:
+    image: goldflow/aquarag-worker:latest
+    container_name: aquarag-worker
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+    depends_on:
+      - rabbitmq
     networks:
       - aquarag-net
 
