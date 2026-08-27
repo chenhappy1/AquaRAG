@@ -137,23 +137,13 @@ async def upload_document(
         print(">>> S3 upload FAILED:", e)
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {e}")
 
-    # ④ 不再在这里做文本提取 + embedding + Pinecone
-    #    改成发一个 RabbitMQ 任务消息
-
     job = {
         "user_id": user_id,
         "filename": filename,
         "s3_key": s3_key
     }
 
-    channel.basic_publish(
-        exchange="",
-        routing_key="rag_upload_jobs",
-        body=json.dumps(job),
-        properties=pika.BasicProperties(
-            delivery_mode=2  # 消息持久化
-        )
-    )
+    publish_rabbitmq(job)
 
     return {
         "status": "queued",
@@ -162,6 +152,23 @@ async def upload_document(
         "message": "File uploaded to S3 and processing job queued in RabbitMQ."
     }
 
+def publish_rabbitmq(job: dict):
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(host=RABBITMQ_HOST)
+    )
+    channel = connection.channel()
+
+    channel.queue_declare(queue="rag_upload_jobs", durable=True)
+
+    channel.basic_publish(
+        exchange="",
+        routing_key="rag_upload_jobs",
+        body=json.dumps(job),
+        properties=pika.BasicProperties(delivery_mode=2)
+    )
+
+    channel.close()
+    connection.close()
 
 
 # ---------------------------
