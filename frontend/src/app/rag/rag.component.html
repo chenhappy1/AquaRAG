@@ -81,7 +81,7 @@
       </header>
 
       <div class="viewer-body">
-        <div class="drop-zone" *ngIf="stage() === 'empty'" (drop)="onDrop($event)" (dragover)="onDragOver($event)">
+        <div class="drop-zone" *ngIf="stage() !== 'processing'" (drop)="onDrop($event)" (dragover)="onDragOver($event)">
           <div>
             <p class="drop-title">Drag and drop a document</p>
             <p class="drop-copy">Supported formats: PDF, DOCX, HTML, TXT, MD up to 25MB</p>
