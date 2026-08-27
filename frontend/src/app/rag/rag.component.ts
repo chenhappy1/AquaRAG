@@ -60,6 +60,14 @@ export class RagComponent implements OnInit {
   ============================ */
 
   ngOnInit() {
+    const user = this.authService.currentUser();
+  if (!user) return;
+
+  console.log("初始化 SSE，userId =", user.id);
+
+  // ⭐ 必须调用
+  this.ragService.connectSSE(user.id);
+  
     this.ragService.getEvents().subscribe(event => {
       console.log('组件收到 SSE：', event);
 

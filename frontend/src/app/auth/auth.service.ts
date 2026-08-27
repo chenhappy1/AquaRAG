@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
 export interface AuthUser {
-  id: number;
+  id: string;
   firstname: string;
   lastname: string;
   email: string;
