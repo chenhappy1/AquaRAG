@@ -35,6 +35,7 @@ connection = pika.BlockingConnection(
 channel = connection.channel()
 channel.queue_declare(queue="rag_upload_jobs", durable=True)
 
+
 def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
     suffix = Path(filename).suffix.lower()
     stream = BytesIO(file_bytes)
@@ -55,6 +56,7 @@ def extract_text_from_memory(filename: str, file_bytes: bytes) -> str:
         return soup.get_text(separator="\n")
 
     raise ValueError(f"Unsupported file type: {suffix}")
+
 
 def process_job(ch, method, properties, body):
     job = json.loads(body)
@@ -105,16 +107,23 @@ def process_job(ch, method, properties, body):
     print(">>> worker: upserting new chunks")
     index.upsert(namespace=user_id, vectors=pinecone_records)
 
-    # 告诉 RabbitMQ：这个消息处理完了
+    # ⭐ 通知 FastAPI（必须在 ack 之前）
+    try:
+        resp = requests.post(
+            "http://localhost:8000/api/rag/notify",
+            json={"user_id": user_id, "filename": filename},
+            timeout=5
+        )
+        print(">>> worker: notify sent:", resp.status_code)
+    except Exception as e:
+        print(">>> worker: notify failed:", e)
+        # ❗ 不 ack，让 RabbitMQ 重试
+        return
+
+    # ⭐ 最后 ack（确保消息不会重复处理）
     ch.basic_ack(delivery_tag=method.delivery_tag)
-    
-    requests.post(
-        "http://localhost:8000/api/rag/notify",
-        json={
-            "user_id": user_id,
-            "filename": filename
-        }
-    )
+    print(">>> worker: ack complete")
+
 
 channel.basic_qos(prefetch_count=1)
 channel.basic_consume(queue="rag_upload_jobs", on_message_callback=process_job)

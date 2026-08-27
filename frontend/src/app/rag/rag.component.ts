@@ -88,7 +88,6 @@ export class RagComponent implements OnInit {
       this.selectedFileIndex.set(0);
       this.chunkPreviews.set(files[0].chunks);
       this.stage.set('active');
-      console.log(files);
     } catch (err) {
       console.error('Failed to load files', err);
       this.stage.set('empty');
