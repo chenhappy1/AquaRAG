@@ -23,19 +23,34 @@ spec:
       containers:
         - env:
             - name: AWS_ACCESS_KEY_ID
-              value: 
+              valueFrom:
+                secretKeyRef:
+                  name: aquarag-secrets
+                  key: aws-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aquarag-secrets
+                  key: aws-key
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aquarag-secrets
+                  key: google-key
+            - name: PINECONE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aquarag-secrets
+                  key: pinecone-key
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aquarag-secrets
+                  key: jwt-sec
             - name: AWS_REGION
               value: us-east-2
             - name: AWS_S3_BUCKET
               value: aqua-rag-135808918878-us-east-2-an
-            - name: AWS_SECRET_ACCESS_KEY
-              value: 
-            - name: GOOGLE_API_KEY
-              value: 
-            - name: JWT_SECRET
-              value: 
-            - name: PINECONE_API_KEY
-              value: 
             - name: PINECONE_INDEX_NAME
               value: aqua-rag
             - name: RABBITMQ_HOST
