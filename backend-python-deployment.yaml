@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.38.0 (a8f5d1cbd)
+  labels:
+    io.kompose.service: backend-python
+  name: backend-python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: backend-python
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.38.0 (a8f5d1cbd)
+      labels:
+        io.kompose.service: backend-python
+    spec:
+      containers:
+        - env:
+            - name: AWS_ACCESS_KEY_ID
+              value: 
+            - name: AWS_REGION
+              value: us-east-2
+            - name: AWS_S3_BUCKET
+              value: aqua-rag-135808918878-us-east-2-an
+            - name: AWS_SECRET_ACCESS_KEY
+              value: 
+            - name: GOOGLE_API_KEY
+              value: 
+            - name: JWT_SECRET
+              value: 
+            - name: PINECONE_API_KEY
+              value: 
+            - name: PINECONE_INDEX_NAME
+              value: aqua-rag
+            - name: RABBITMQ_HOST
+              value: rabbitmq
+          image: goldflow/aquarag-backend-python:latest
+          name: backend-python
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+      restartPolicy: Always
