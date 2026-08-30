@@ -23,15 +23,15 @@ export class AuthService {
   constructor(private readonly http: HttpClient) {}
 
   login(credentials: { email: string; password: string }): Observable<AuthResponse> {
-    // return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
-    return this.http.post<AuthResponse>('http://18.191.193.40/api/auth/login', credentials).pipe(
+    return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
+    //return this.http.post<AuthResponse>('http://18.191.193.40/api/auth/login', credentials).pipe(
       tap((response) => this.persistSession(response))
     );
   }
 
   register(payload: { firstname: string; lastname: string; password: string; email: string }): Observable<AuthResponse> {
-    // return this.http.post<AuthResponse>('/api/auth/register', payload).pipe(
-    return this.http.post<AuthResponse>('http://18.191.193.40/api/auth/register', payload).pipe(
+    return this.http.post<AuthResponse>('/api/auth/register', payload).pipe(
+    //return this.http.post<AuthResponse>('http://18.191.193.40/api/auth/register', payload).pipe(
       tap((response) => {
         if (response?.token && response?.user) {
           this.persistSession(response);
