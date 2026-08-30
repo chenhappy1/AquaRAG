@@ -24,6 +24,13 @@ spec:
         - env:
             - name: SPRING_PROFILES_ACTIVE
               value: prod
+            # 👇 核心：强行注入环境变量，把连接导向本地电脑的数据库
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://host.docker.internal:5432/aquarag
+            - name: SPRING_DATASOURCE_USERNAME
+              value: postgres
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "123456" # ⚠️ 记得换成你本地本地 Postgres 的真实密码
           image: goldflow/aquarag-backend-java:latest
           imagePullPolicy: IfNotPresent
           name: backend-java
