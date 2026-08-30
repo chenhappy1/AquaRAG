@@ -1,12 +1,12 @@
-# ==========================================
-# 1. 专门负责守卫前端静态页面的大门（不进行任何路径重写，直接渲染页面）
-# ==========================================
+# ==============================================================================
+# 1. 前端静态大门：专门负责守卫前端静态页面（直接渲染完美页面）
+# ==============================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: aquarag-frontend-ingress
 spec:
-  ingressClassName: nginx  # 🟢 核心补齐：强行让网关大管家无条件接管此路由！
+  ingressClassName: nginx  # 强行让 Ingress Controller 网关大管家接管此路由
   rules:
     - host: localhost
       http:
@@ -19,38 +19,37 @@ spec:
                 port:
                   number: 80
 ---
-# ==========================================
-# 2. 专门负责处理后端微服务与流式长连接的大门（开启精准 Rewrite 重写与 SSE 支持）
-# ==========================================
+# ==============================================================================
+# 2. 后端接口大门：专门负责处理后端微服务与流式长连接（回归最纯净的盲转通道，绝不截断路径）
+# ==============================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: aquarag-api-ingress
   annotations:
-    # 核心：只让后端的接口在这里进行跨域掐头去尾，绝对不干扰前端静态文件！
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    # 强行废掉网关数据缓存，确保 AI 打字机流和异步通知能实时喷射
+    # 🟢 核心流式传输：强行废掉网关数据缓存，确保 AI 打字机效果和异步通知（SSE）能毫秒级实时喷射
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
-  ingressClassName: nginx  # 🟢 核心补齐：强行让网关大管家无条件接管此路由！
+  ingressClassName: nginx  # 强行让 Ingress Controller 网关大管家接管此路由
   rules:
     - host: localhost
       http:
         paths:
-          # Java 认证接口转发
-          - path: /api/auth(/|$)(.*)
-            pathType: ImplementationSpecific
+          # 🟢 绝杀：使用 ImplementationSpecific/Prefix，删掉 rewrite-target 注解
+          # 这样 Ingress 会把完整的 /api/auth/register 原封不动地喂给 Java 容器，实现完美撞车！
+          - path: /api/auth
+            pathType: Prefix
             backend:
               service:
                 name: backend-java
                 port:
                   number: 9000
 
-          # Python RAG 算法接口与 SSE 异步通知长连接转发
-          - path: /api/rag(/|$)(.*)
-            pathType: ImplementationSpecific
+          # 统一原汁原味转发 Python RAG 算法接口与 SSE 异步通知长连接
+          - path: /api/rag
+            pathType: Prefix
             backend:
               service:
                 name: backend-python
