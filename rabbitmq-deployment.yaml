@@ -23,9 +23,9 @@ spec:
       containers:
         - env:
             - name: RABBITMQ_DEFAULT_PASS
-              value: admin
+              value: guest
             - name: RABBITMQ_DEFAULT_USER
-              value: admin
+              value: guest
           image: rabbitmq:3-management
           imagePullPolicy: IfNotPresent
           name: rabbitmq
