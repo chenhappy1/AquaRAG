@@ -51,5 +51,6 @@ spec:
             - name: RABBITMQ_HOST
               value: rabbitmq
           image: goldflow/aquarag-worker:latest
+          imagePullPolicy: IfNotPresent
           name: aquarag-worker
       restartPolicy: Always

@@ -56,6 +56,7 @@ spec:
             - name: RABBITMQ_HOST
               value: rabbitmq
           image: goldflow/aquarag-backend-python:latest
+          imagePullPolicy: IfNotPresent
           name: backend-python
           ports:
             - containerPort: 8000

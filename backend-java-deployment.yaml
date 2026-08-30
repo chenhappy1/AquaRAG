@@ -25,6 +25,7 @@ spec:
             - name: SPRING_PROFILES_ACTIVE
               value: prod
           image: goldflow/aquarag-backend-java:latest
+          imagePullPolicy: IfNotPresent
           name: backend-java
           ports:
             - containerPort: 9000
