@@ -132,8 +132,9 @@ def process_job(ch, method, properties, body):
 def main():
     # 建立网络弹性连接，保障 K8s 内部拓扑建立成功
     print(f">>> worker: connecting to RabbitMQ at {RABBITMQ_HOST}...")
+    credentials = pika.PlainCredentials('admin', 'admin') # ⬅️ 换成无远程禁令的管理员账号
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host=RABBITMQ_HOST)
+        pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
     )
     channel = connection.channel()
     channel.queue_declare(queue="rag_upload_jobs", durable=True)
