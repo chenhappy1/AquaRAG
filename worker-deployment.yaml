@@ -50,7 +50,13 @@ spec:
               value: aqua-rag
             - name: RABBITMQ_HOST
               value: rabbitmq
-          image: goldflow/aquarag-worker:latest
+            # 👇 核心修复：告诉代码里的 requests 跨越 Pod 去内网呼叫 FastAPI 网页服务名
+            - name: PYTHON_BACKEND_HOST
+              value: backend-python
+          # 💡 核心优化：直接复用你本地已经打好的 python 算法镜像，不单独打包 worker 镜像
+          image: goldflow/aquarag-backend-python:latest
           imagePullPolicy: IfNotPresent
           name: aquarag-worker
+          # 👇 核心优化：强行覆盖默认镜像入口，告诉这个容器专门运行你的后台消费者脚本
+          command: ["python", "worker.py"] # ⚠️ 如果你本地的消费者脚本不叫 worker.py，请将这里换成真实的脚本文件名
       restartPolicy: Always
