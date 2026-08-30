@@ -8,6 +8,7 @@ metadata:
     io.kompose.service: backend-java
   name: backend-java
 spec:
+  type: LoadBalancer # 💡 核心修改：让本地电脑的浏览器能跨域戳到 9000 端口
   ports:
     - name: "9000"
       port: 9000
