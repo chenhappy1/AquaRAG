@@ -22,10 +22,11 @@ spec:
     spec:
       containers:
         - env:
+            # 🔴 关键修复：把 RabbitMQ 的密码强行降级改回默认的 guest，完美迎合你写死在代码里的默认账号
             - name: RABBITMQ_DEFAULT_PASS
-              value: admin
+              value: guest
             - name: RABBITMQ_DEFAULT_USER
-              value: admin
+              value: guest
           image: rabbitmq:3-management
           imagePullPolicy: IfNotPresent
           name: rabbitmq
@@ -36,3 +37,4 @@ spec:
               protocol: TCP
       hostname: rabbitmq
       restartPolicy: Always
+
