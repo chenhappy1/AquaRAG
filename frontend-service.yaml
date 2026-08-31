@@ -8,7 +8,7 @@ metadata:
     io.kompose.service: frontend
   name: frontend
 spec:
-  type: ClusterIP # 💡 核心修改：一劳永逸向 Windows 打开 80 端口大门
+  type: LoadBalancer # 💡 核心修改：一劳永逸向 Windows 打开 80 端口大门
   ports:
     - name: "80"
       port: 80
